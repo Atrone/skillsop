@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { buildGatewayRequest, sendGatewayRequest } from './api/skillsaiClient'
+import { buildGatewayRequest, fetchBackendHealth, sendGatewayRequest } from './api/skillsaiClient'
 import './App.css'
 
 /**
@@ -9,6 +9,10 @@ import './App.css'
 function App() {
   // Line comment: initialize default connection settings for the gateway workbench.
   const [baseUrl, setBaseUrl] = useState(import.meta.env.VITE_BACKEND_BASE_URL || 'http://localhost:8000')
+  const [healthStatus, setHealthStatus] = useState('')
+  const [healthPayload, setHealthPayload] = useState(null)
+  const [healthError, setHealthError] = useState('')
+  const [isCheckingHealth, setIsCheckingHealth] = useState(false)
   const [actorId, setActorId] = useState('emp-1')
   const [token, setToken] = useState('valid-token')
   const [activeRoute, setActiveRoute] = useState('/analytics')
@@ -177,6 +181,27 @@ function App() {
       setError(requestError instanceof Error ? requestError.message : 'Request failed.')
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  /**
+   * Check backend health against the FastAPI health endpoint.
+   * // Line comment: this confirms connectivity before sending gateway requests.
+   */
+  async function handleHealthCheck() {
+    setIsCheckingHealth(true)
+    setHealthError('')
+    setHealthPayload(null)
+    setHealthStatus('')
+    try {
+      const data = await fetchBackendHealth(baseUrl)
+      setHealthPayload(data)
+      setHealthStatus('Healthy')
+    } catch (requestError) {
+      setHealthError(requestError instanceof Error ? requestError.message : 'Health check failed.')
+      setHealthStatus('Unhealthy')
+    } finally {
+      setIsCheckingHealth(false)
     }
   }
 
@@ -550,6 +575,28 @@ function App() {
             />
           </label>
         </div>
+        <div className="connection-actions">
+          <button
+            className="run-button"
+            type="button"
+            onClick={handleHealthCheck}
+            disabled={isCheckingHealth}
+          >
+            {isCheckingHealth ? 'Checking health...' : 'Check API health'}
+          </button>
+          {healthStatus ? (
+            <p className={healthStatus === 'Healthy' ? 'status-text status-ok' : 'status-text status-error'}>
+              Status: {healthStatus}
+            </p>
+          ) : null}
+        </div>
+        {healthError ? <p className="error-text">{healthError}</p> : null}
+        {healthPayload ? (
+          <div>
+            <h3>Health response</h3>
+            <pre>{JSON.stringify(healthPayload, null, 2)}</pre>
+          </div>
+        ) : null}
       </section>
 
       <form className="panel" onSubmit={handleRunRequest}>
