@@ -47,7 +47,7 @@ export async function sendGatewayRequest(requestPayload, backendBaseUrl = '') {
   if (textBody) {
     try {
       parsedBody = JSON.parse(textBody)
-    } catch (_error) {
+    } catch {
       parsedBody = { raw: textBody }
     }
   }

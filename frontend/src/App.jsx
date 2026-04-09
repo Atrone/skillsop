@@ -143,7 +143,7 @@ function App() {
   function safeParseJson(value) {
     try {
       return JSON.parse(value)
-    } catch (_error) {
+    } catch {
       return {}
     }
   }
