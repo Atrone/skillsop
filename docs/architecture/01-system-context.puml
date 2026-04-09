@@ -1,0 +1,35 @@
+@startuml
+title C4 Level 1 - SkillsAI System Context
+
+skinparam componentStyle rectangle
+skinparam shadowing false
+
+actor "HR Admin" as Admin
+actor "Analyst" as Analyst
+actor "Manager" as Manager
+actor "Employee" as Employee
+
+rectangle "Customer Enterprise" {
+  database "HRIS" as HRIS
+  database "LMS/LXP" as LMS
+  database "ATS" as ATS
+  database "Identity Provider" as IDP
+  database "External Assessment Systems\n(optional)" as EASM
+}
+
+rectangle "SkillsAI Platform" as SKILLSAI {
+  component "Unified Skills Intelligence Platform\n- skill inference\n- coaching\n- mobility\n- analytics\n- internal assessments\n- longitudinal KPI reporting" as PLATFORM
+}
+
+Admin --> PLATFORM : administers platform,\nauthors assessments,\nviews workforce insights
+Analyst --> PLATFORM : analyzes trends,\nKPIs, cohorts
+Manager --> PLATFORM : reviews team skills,\nreadiness, mobility
+Employee --> PLATFORM : views profile,\nreceives coaching,\ntakes assessments
+
+HRIS --> PLATFORM : workforce, role,\norg data
+LMS --> PLATFORM : learning activity,\ncompletion data
+ATS --> PLATFORM : job and candidate data
+IDP --> PLATFORM : identity,\nauthentication,\nentitlements
+EASM --> PLATFORM : optional external\nassessment evidence
+
+@enduml

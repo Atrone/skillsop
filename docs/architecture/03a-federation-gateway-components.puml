@@ -1,0 +1,55 @@
+@startuml
+title C4 Level 3A - Federation Gateway Components
+
+skinparam componentStyle rectangle
+skinparam shadowing false
+
+actor "User" as USER
+database "Identity Provider" as IDP
+
+rectangle "Federation Gateway" as FED {
+  component "Web/API Entry" as API
+  component "Auth Adapter" as AUTH
+  component "Tenant Resolver" as TENANT
+  component "Session Context Builder" as CTX
+  component "Request Router" as ROUTER
+  component "Query Composer" as QUERY
+  component "Command Orchestrator" as CMD
+  component "Response Composer" as RESP
+  component "Rate Limiter" as RATE
+  component "Feature Flag Evaluator" as FLAG
+  component "Audit Hook" as AH
+}
+
+rectangle "Downstream Containers" {
+  component "Identity Mapper API" as IDM
+  component "Core Intelligence API" as CORE
+  component "Activation Services API" as ACT
+  component "SkillsAI Assessments API" as ASM
+  component "Analytics API" as ANL
+}
+
+USER --> API : HTTPS/UI/API
+API --> RATE : throttle
+RATE --> AUTH : authenticate
+AUTH --> IDP : validate token / claims
+AUTH --> TENANT : resolve tenant
+TENANT --> CTX : build request context
+CTX --> FLAG : evaluate features
+FLAG --> ROUTER : route request
+ROUTER --> QUERY : read/query path
+ROUTER --> CMD : write/action path
+QUERY --> IDM : canonical identity reads
+QUERY --> CORE : taxonomy/skill reads
+QUERY --> ACT : coaching/mobility reads
+QUERY --> ASM : assessment reads
+QUERY --> ANL : analytics reads
+CMD --> IDM : identity link/update
+CMD --> CORE : inference/policy actions
+CMD --> ACT : coaching/mobility actions
+CMD --> ASM : assessment commands
+CMD --> ANL : export/materialization triggers
+QUERY --> RESP : compose response
+CMD --> RESP : compose response
+RESP --> AH : audit response envelope
+@enduml

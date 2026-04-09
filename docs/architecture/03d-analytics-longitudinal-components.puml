@@ -1,0 +1,80 @@
+@startuml
+title C4 Level 3D - Analytics & Longitudinal Components
+
+skinparam componentStyle rectangle
+skinparam shadowing false
+
+actor "Manager" as Manager
+actor "Analyst" as Analyst
+
+rectangle "Analytics & Longitudinal" <<Container>> {
+  package "Analytics Service" {
+    component "Analytics API" as AAPI
+    component "Semantic Query Layer" as SEM
+    component "KPI Query Engine" as KPIQ
+    component "Trend & Cohort Analyzer" as TREND
+    component "Workforce Planning Modeler" as PLAN
+    component "Dashboard Renderer" as DASH
+  }
+
+  package "Snapshot Scheduler" {
+    component "Schedule Manager" as SCHED
+    component "Dependency Resolver" as DEP
+    component "Execution Orchestrator" as ORCH
+    component "Backfill Manager" as BACK
+    component "Run Ledger" as LEDGER
+  }
+
+  package "KPI Materializer" {
+    component "KPI Definition Loader" as KDEF
+    component "Metric Calculation Engine" as KCALC
+    component "Aggregation Engine" as KAGG
+    component "Snapshot Builder" as KSNAP
+    component "Dimensional Publisher" as KPUB
+  }
+}
+
+database "Skills Graph" as GRAPH
+database "Time-Series / Event Store" as TS
+database "Derived Metrics Store" as MART
+database "Versioned Metadata Store" as META
+database "Analytics Warehouse / Mart" as WH
+database "Assessment Attempts Store" as ATTEMPTS
+database "Audit & Consent Store" as AUDIT
+queue "Platform Event Bus" as BUS
+
+Manager --> AAPI : team dashboards
+Analyst --> AAPI : analytics queries
+
+AAPI --> SEM : parse and plan query
+SEM --> KPIQ : current KPI query
+SEM --> TREND : time-series/cohort query
+SEM --> PLAN : workforce scenario query
+
+KPIQ --> DASH : current-state views
+TREND --> DASH : trend views
+PLAN --> DASH : planning views
+
+SEM --> GRAPH : graph analytics
+SEM --> MART : derived metric reads
+SEM --> WH : warehouse history
+SEM --> ATTEMPTS : assessment analytics
+SEM --> AUDIT : governance/compliance reads
+
+BUS ..> SCHED : refresh trigger
+SCHED --> DEP : build dependency graph
+DEP --> ORCH : execute run
+ORCH --> BACK : backfill/recompute
+BACK --> LEDGER : record run state
+
+ORCH --> KDEF : load KPI definitions
+KDEF --> META : effective-dated KPI defs
+KDEF --> KCALC : formulas
+KCALC --> TS : event history reads
+KCALC --> MART : current-state reads
+KCALC --> KAGG : aggregate measures
+KAGG --> KSNAP : create time slices
+KSNAP --> KPUB : publish marts
+KPUB --> WH : dimensional facts/views
+
+@enduml
