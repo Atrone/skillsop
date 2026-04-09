@@ -90,6 +90,27 @@ textarea {
   cursor: wait;
 }
 
+.connection-actions {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.status-text {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.status-ok {
+  color: #2f855a;
+}
+
+.status-error {
+  color: var(--danger);
+}
+
 .result-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
