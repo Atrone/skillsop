@@ -69,6 +69,23 @@ Run the app:
 npm run dev
 ```
 
+### End-to-end local run
+
+Start backend (from repository root):
+
+```bash
+python3 -m pip install -r requirements.txt
+python3 -m skillsai.main
+```
+
+Then start frontend in a separate terminal:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
 ## Build and lint
 
 ```bash
