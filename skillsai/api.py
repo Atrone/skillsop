@@ -1,4 +1,4 @@
-"""FastAPI backend exposing the SkillsAI federation gateway."""
+"""FastAPI backend exposing the SkillsAI federation gateway. """
 
 from __future__ import annotations
 
