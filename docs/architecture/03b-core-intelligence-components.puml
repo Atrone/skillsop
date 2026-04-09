@@ -1,0 +1,75 @@
+@startuml
+title C4 Level 3B - Core Intelligence Components
+
+skinparam componentStyle rectangle
+skinparam shadowing false
+
+rectangle "Core Intelligence" <<Container>> {
+
+  package "Taxonomy Service" {
+    component "Taxonomy API" as TAXAPI
+    component "Skill Ontology Manager" as ONT
+    component "Job Architecture Mapper" as JAM
+    component "Proficiency Scale Manager" as PROF
+    component "Version Manager" as TVER
+  }
+
+  package "Inference Service" {
+    component "Evidence Intake" as EINT
+    component "Signal Normalizer" as NORM
+    component "Multi-Signal Fusion Engine" as FUSE
+    component "Proficiency Estimator" as PEST
+    component "Confidence Scorer" as CONF
+    component "Gap Detector" as GAP
+    component "Explanation Builder" as EXPL
+    component "Inference Publisher" as IPUB
+  }
+
+  package "Governance Service" {
+    component "Consent Manager" as CONSENT
+    component "Policy Engine" as POLICY
+    component "Access Decision Point" as PDP
+    component "Lineage Tracker" as LINEAGE
+    component "Retention Manager" as RETAIN
+  }
+}
+
+database "Minimal Cached Operational Store" as CACHE
+database "Skills Graph" as GRAPH
+database "Audit & Consent Store" as AUDIT
+database "Time-Series / Event Store" as TS
+database "Derived Metrics Store" as MART
+database "Versioned Metadata Store" as META
+queue "Platform Event Bus" as BUS
+
+TAXAPI --> ONT : manage skills
+TAXAPI --> JAM : map jobs to skills
+TAXAPI --> PROF : manage proficiency scales
+ONT --> TVER : version ontology
+JAM --> TVER : version mappings
+PROF --> TVER : version scales
+TVER --> CACHE : publish read models
+TVER --> META : persist versions
+
+EINT --> CONSENT : check evidence use
+CONSENT --> POLICY : evaluate policy
+POLICY --> PDP : authorize
+PDP --> AUDIT : record decision
+EINT --> NORM : normalize evidence
+NORM --> FUSE : merge signals
+FUSE --> PEST : estimate proficiency
+PEST --> CONF : confidence score
+CONF --> GAP : detect gaps
+GAP --> EXPL : build explanations
+EXPL --> IPUB : publish skill state
+IPUB --> GRAPH : update inferred graph
+IPUB --> TS : append events
+IPUB --> MART : update current metrics
+IPUB --> META : model/version refs
+IPUB --> AUDIT : audit inference
+IPUB ..> BUS : SkillStateUpdated
+
+LINEAGE --> META : source lineage
+RETAIN --> TS : retention operations
+RETAIN --> AUDIT : retention audit
+@enduml

@@ -1,0 +1,95 @@
+@startuml
+title C4 Level 2 - SkillsAI Container Diagram
+
+skinparam componentStyle rectangle
+skinparam shadowing false
+
+actor "HR Admin" as Admin
+actor "Analyst" as Analyst
+actor "Manager" as Manager
+actor "Employee" as Employee
+
+rectangle "Customer Systems" {
+  database "HRIS" as HRIS
+  database "LMS/LXP" as LMS
+  database "ATS" as ATS
+  database "Identity Provider" as IDP
+  database "External Assessment Systems" as EASM
+}
+
+rectangle "SkillsAI Platform" {
+  rectangle "Federation Gateway" as FED
+  rectangle "Identity Mapper" as IDM
+  rectangle "Core Intelligence" as CORE
+  rectangle "Activation Services" as ACT
+  rectangle "SkillsAI Assessments" as ASM
+  rectangle "Analytics & Longitudinal" as ANL
+
+  queue "Platform Event Bus" as BUS
+
+  database "Minimal Cached Operational Store" as CACHE
+  database "Skills Graph" as GRAPH
+  database "Audit & Consent Store" as AUDIT
+  database "Time-Series / Event Store" as TS
+  database "Derived Metrics Store" as MART
+  database "Versioned Metadata Store" as META
+  database "Analytics Warehouse / Mart" as WH
+  database "Assessment Item Bank" as ITEMBANK
+  database "Assessment Attempts Store" as ATTEMPTS
+}
+
+Admin --> FED : UI/API
+Analyst --> FED : UI/API
+Manager --> FED : UI/API
+Employee --> FED : UI/API
+
+HRIS --> FED : source APIs
+LMS --> FED : source APIs
+ATS --> FED : source APIs
+EASM --> FED : source APIs
+
+IDP --> IDM : OIDC/SAML/SCIM
+
+FED --> IDM : identity resolution
+FED --> CORE : taxonomy,\ninference,\ngovernance APIs
+FED --> ACT : coaching,\nmobility APIs
+FED --> ASM : assessment APIs
+FED --> ANL : analytics APIs
+
+IDM --> CACHE : canonical identities
+
+CORE --> GRAPH : inferred skill graph
+CORE --> AUDIT : consent,\npolicy,\naudit
+CORE --> TS : evidence/history
+CORE --> MART : derived current state
+CORE --> META : taxonomy,\nmodel lineage
+CORE ..> BUS : skill state events
+
+ACT --> CACHE : context reads
+ACT --> GRAPH : role/skill topology
+ACT --> AUDIT : recommendation / decision logs
+ACT --> TS : interaction events
+ACT --> MART : fit/outcome metrics
+ACT ..> BUS : coaching/mobility events
+
+ASM --> ITEMBANK : item/forms/rubrics
+ASM --> ATTEMPTS : responses/scores
+ASM --> AUDIT : session/scoring audit
+ASM --> TS : assessment evidence events
+ASM --> MART : assessment KPIs
+ASM --> META : versioned assessment metadata
+ASM ..> BUS : assessment evidence events
+
+ANL --> GRAPH : graph analytics
+ANL --> AUDIT : compliance analytics
+ANL --> ATTEMPTS : assessment analytics
+ANL --> TS : historical event reads
+ANL --> MART : KPI reads
+ANL --> META : KPI definitions / versions
+ANL --> WH : publish/query analytics marts
+
+TS --> WH : warehouse loading
+MART --> WH : warehouse loading
+BUS ..> ANL : refresh/materialization triggers
+
+@enduml

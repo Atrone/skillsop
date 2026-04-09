@@ -1,0 +1,93 @@
+@startuml
+title C4 Level 3C - SkillsAI Assessments Components
+skinparam componentStyle rectangle
+skinparam shadowing false
+
+actor "HR Admin" as Admin
+actor "Employee" as Employee
+
+rectangle "SkillsAI Assessments" as ASM {
+  package "Assessment Authoring" {
+    component "Authoring UI/API" as AAUTH
+    component "Blueprint Designer" as BLUE
+    component "Item Authoring Studio" as ITEM
+    component "Rubric Editor" as RUBRIC
+    component "Version & Publish Workflow" as APUBW
+  }
+
+  package "Assessment Delivery" {
+    component "Delivery UI/API" as ADEL
+    component "Assignment Resolver" as ASSIGN
+    component "Session Manager" as SESSION
+    component "Form Renderer" as RENDER
+    component "Response Capture" as RESP
+    component "Submission Manager" as SUBMIT
+  }
+
+  package "Scoring Engine" {
+    component "Scoring Intake" as SINT
+    component "Objective Scorer" as OBJ
+    component "Rubric Scorer" as RSCORE
+    component "Calibration / Reliability" as CAL
+    component "Score Normalizer" as SNORM
+    component "Scoring Publisher" as SPUB
+  }
+
+  package "Assessment Evidence Publisher" {
+    component "Evidence Mapper" as EMAP
+    component "Skill Signal Translator" as SIG
+    component "Outcome Event Builder" as EVENT
+    component "Metrics Updater" as MUPD
+    component "Inference Feed Publisher" as IFP
+  }
+}
+
+database "Assessment Item Bank" as ITEMBANK
+database "Assessment Attempts Store" as ATTEMPTS
+database "Versioned Metadata Store" as META
+database "Audit & Consent Store" as AUDIT
+database "Time-Series / Event Store" as TS
+database "Derived Metrics Store" as MART
+component "Core Intelligence API" as CORE
+queue "Platform Event Bus" as BUS
+
+Admin --> AAUTH : author assessments
+AAUTH --> BLUE : define blueprint
+AAUTH --> ITEM : author items
+AAUTH --> RUBRIC : define scoring logic
+BLUE --> APUBW : package structure
+ITEM --> APUBW : package items
+RUBRIC --> APUBW : package rubric version
+APUBW --> ITEMBANK : publish items/forms
+APUBW --> META : persist versions
+
+Employee --> ADEL : take assessment
+ADEL --> ASSIGN : resolve form
+ASSIGN --> SESSION : open session
+SESSION --> RENDER : render assessment
+RENDER --> RESP : capture answers
+RESP --> SUBMIT : finalize
+RESP --> ATTEMPTS : save responses
+SUBMIT --> ATTEMPTS : mark submitted
+SUBMIT --> AUDIT : session/consent log
+SUBMIT --> SINT : submit for scoring
+
+SINT --> OBJ : auto-score objective items
+SINT --> RSCORE : rubric/manual scoring
+OBJ --> CAL : calibration
+RSCORE --> CAL : reliability checks
+CAL --> SNORM : normalize score
+SNORM --> SPUB : publish final scores
+SPUB --> ATTEMPTS : save scores
+SPUB --> AUDIT : scoring audit
+
+SPUB --> EMAP : scored evidence
+EMAP --> SIG : map to skill signal
+SIG --> EVENT : build evidence event
+EVENT --> MUPD : derive metrics
+EVENT --> IFP : publish inferable signal
+EVENT --> TS : append assessment events
+MUPD --> MART : update assessment KPIs
+IFP --> CORE : push evidence into inference
+IFP ..> BUS : AssessmentEvidencePublished
+@enduml
