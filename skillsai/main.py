@@ -4,18 +4,27 @@ from __future__ import annotations
 
 import os
 import sys
+import types
 from pathlib import Path
 
 # Block comment:
-# This startup guard normalizes imports for direct script execution from inside the package directory.
+# This startup guard normalizes imports for packaged and flattened runtime entrypoints.
 if __package__ in {None, ""}:
     # Line comment: resolve the package directory and add its parent as the package import root.
     package_dir = Path(__file__).resolve().parent
     repo_root = package_dir.parent
-    # Line comment: remove entries that can shadow Python stdlib modules with local files.
-    sys.path = [entry for entry in sys.path if Path(entry or ".").resolve() != package_dir]
-    # Line comment: prepend the repository root so skillsai imports resolve consistently.
-    sys.path.insert(0, str(repo_root))
+    # Line comment: detect whether the file is running from the real skillsai package directory.
+    is_package_layout = (package_dir / "__init__.py").exists()
+    if is_package_layout:
+        # Line comment: remove entries that can shadow Python stdlib modules with local files.
+        sys.path = [entry for entry in sys.path if Path(entry or ".").resolve() != package_dir]
+        # Line comment: prepend the repository root so skillsai imports resolve consistently.
+        sys.path.insert(0, str(repo_root))
+    else:
+        # Line comment: register a synthetic skillsai package when deployment flattens package files into one directory.
+        synthetic_package = types.ModuleType("skillsai")
+        synthetic_package.__path__ = [str(package_dir)]
+        sys.modules.setdefault("skillsai", synthetic_package)
 
 import uvicorn
 
