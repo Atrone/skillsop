@@ -92,8 +92,13 @@ def create_app() -> FastAPI:
     app.state.platform = SkillsAIPlatform()
     # Line comment: hydrate stores from the shared seed-data folder when it is present.
     load_seed_data(app.state.platform)
-    # Line comment: preserve a minimal fallback dataset when the seed-data folder is unavailable.
-    if not bool(app.state.platform.stores.meta.get("seed_data_loaded", False)):
+    # Line comment: preserve a minimal fallback dataset only when no configured source data was loaded.
+    if not bool(
+        app.state.platform.stores.meta.get(
+            "source_data_loaded",
+            app.state.platform.stores.meta.get("seed_data_loaded", False),
+        )
+    ):
         seed_demo_data(app.state.platform)
     # Line comment: enable browser calls from the React dev server origin.
     app.add_middleware(

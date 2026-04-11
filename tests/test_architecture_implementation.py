@@ -1,4 +1,15 @@
 """Tests for the Python implementation of the architecture docs."""
+from __future__ import annotations
+from pathlib import Path
+import sys
+import importlib
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+sys.modules.pop("skillsai", None)
+api_module = importlib.import_module("skillsai.app")
 
 from skillsai.models import PlatformRequest
 from skillsai.skills_platform import SkillsAIPlatform

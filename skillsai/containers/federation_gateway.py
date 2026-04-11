@@ -189,6 +189,9 @@ class QueryComposer:
         return {
             "seed_data_dir": stores.meta.get("seed_data_dir", ""),
             "seed_modules": list(stores.meta.get("seed_modules", [])),
+            "source_modules": list(stores.meta.get("source_modules", [])),
+            "source_data_loaded": bool(stores.meta.get("source_data_loaded", stores.meta.get("seed_data_loaded", False))),
+            "source_integrations": list(stores.meta.get("source_integrations", [])),
             "available_payloads": dict(stores.meta.get("seed_platform_payloads", {})),
             "request_samples": list(request_samples),
             "identity_count": identity_count,

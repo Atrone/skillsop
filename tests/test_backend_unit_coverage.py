@@ -80,6 +80,9 @@ from skillsai.models import AssessmentSubmission, EvidenceSignal, KPIQuery, Plat
 from skillsai.skills_platform import SkillsAIPlatform
 from skillsai.seed_loader import (
     DEFAULT_PROFICIENCY_SCALE,
+    SOURCE_KIND_CUSTOMER_RECORDS,
+    SourceIntegration,
+    SourceIntegrationHubConfig,
     _load_activation_seed,
     _load_analytics_seed,
     _load_assessment_seed,
@@ -88,6 +91,7 @@ from skillsai.seed_loader import (
     _load_platform_seed,
     _read_seed_json,
     load_seed_data,
+    read_source_integration_config,
     resolve_seed_data_dir,
 )
 from skillsai.stores import PlatformStores
@@ -287,6 +291,79 @@ def build_seed_tree(seed_data_dir: Path) -> None:
                 },
             },
             "materialization_run": {"run_id": "seed-run"},
+        },
+    )
+
+
+# Block comment:
+# This helper creates a representative customer-record payload tree for integration hub tests.
+def build_customer_record_tree(customer_records_dir: Path) -> None:
+    """Create a minimal but complete customer-record directory structure."""
+    # Line comment: write a provider-scoped Workday-style export with identity, skills, coaching, and analytics data.
+    write_seed_json(
+        customer_records_dir,
+        "workday/index.json",
+        {
+            "tenant_id": "acme-tenant",
+            "model_version": "workday-v1",
+            "taxonomy": {
+                "active_version": "workday-taxonomy",
+                "skills": [{"id": "skill:sql"}],
+                "job_mappings": {"analyst": ["skill:sql"]},
+            },
+            "workers": [
+                {
+                    "worker_id": "wd-100",
+                    "employee_id": "emp-100",
+                    "roles": ["employee"],
+                    "department": "finance",
+                    "location": "remote",
+                    "skill_states": [
+                        {
+                            "skill_id": "skill:sql",
+                            "proficiency": 0.75,
+                            "confidence": 0.8,
+                            "gap": 0.05,
+                        }
+                    ],
+                    "recommendations": [
+                        {"type": "coaching", "skill_id": "skill:sql", "priority": 0.35}
+                    ],
+                }
+            ],
+            "assessment_packages": [
+                {
+                    "assessment_id": "asm-workday",
+                    "version": 2,
+                    "blueprint": {"sections": [{"name": "SQL"}], "duration_min": 20},
+                    "items": [{"id": "q-workday", "skill_id": "skill:sql"}],
+                    "rubric": {"type": "binary"},
+                }
+            ],
+            "attempts": [
+                {
+                    "attempt_id": "attempt-workday",
+                    "employee_id": "emp-100",
+                    "assessment_id": "asm-workday",
+                    "status": "submitted",
+                    "responses": {"q-workday": "answer"},
+                    "scores": {"final": 0.92},
+                }
+            ],
+            "analytics": {
+                "read_models": {
+                    "kpi_snapshot": {
+                        "metric": "skill_coverage",
+                        "cohort": "finance",
+                        "data": {"value": 0.88},
+                    },
+                    "planning_snapshot": {
+                        "cohort": "finance",
+                        "data": {"target": 0.95},
+                    },
+                },
+                "materialization_run": {"run_id": "workday-run"},
+            },
         },
     )
 
@@ -1039,3 +1116,70 @@ def test_load_seed_data_handles_missing_and_existing_directories(tmp_path: Path)
         "assessments",
         "analytics",
     ]
+
+
+# Block comment:
+# This test verifies the source integration hub can read JSON configuration entries.
+def test_read_source_integration_config_reads_seed_and_customer_sources(tmp_path: Path) -> None:
+    """Ensure the source integration config parser preserves ordered seed and customer source settings."""
+    # Line comment: write a config file that mixes disabled seed data with an enabled Workday customer source.
+    config_path = tmp_path / "source-config.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "sources": [
+                    {"name": "seed-data", "kind": "seed_data", "path": "seed-data", "enabled": False},
+                    {
+                        "name": "workday",
+                        "kind": "customer_records",
+                        "provider": "workday",
+                        "path": "customer-records",
+                        "enabled": True,
+                        "options": {"mode": "snapshot"},
+                    },
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    config = read_source_integration_config(config_path)
+    assert [source.name for source in config.sources] == ["seed-data", "workday"]
+    assert config.sources[0].enabled is False
+    assert config.sources[1].kind == SOURCE_KIND_CUSTOMER_RECORDS
+    assert config.sources[1].path == (tmp_path / "customer-records").resolve()
+    assert config.sources[1].options["mode"] == "snapshot"
+
+
+# Block comment:
+# This test verifies the source integration hub can load provider-style customer record data.
+def test_load_seed_data_can_load_customer_record_sources(tmp_path: Path) -> None:
+    """Ensure the compatibility loader can hydrate customer records when configured with a provider source."""
+    # Line comment: build a Workday-style customer-record export and load it through the hub config wrapper.
+    customer_records_dir = tmp_path / "customer-records"
+    build_customer_record_tree(customer_records_dir)
+    platform = SkillsAIPlatform()
+    load_seed_data(
+        platform,
+        source_config=SourceIntegrationHubConfig(
+            sources=(
+                SourceIntegration(
+                    name="workday",
+                    kind=SOURCE_KIND_CUSTOMER_RECORDS,
+                    path=customer_records_dir.resolve(),
+                    provider="workday",
+                ),
+            )
+        ),
+    )
+    assert platform.stores.meta["source_data_loaded"] is True
+    assert platform.stores.meta["seed_data_loaded"] is False
+    assert "customer-records" in platform.stores.meta["source_modules"]
+    assert platform.stores.cache["identity:emp-100"]["tenant_id"] == "acme-tenant"
+    assert platform.stores.cache["identity:emp-100"]["claims"]["claims"]["department"] == "finance"
+    assert platform.stores.cache["id-link:wd-100"] == "emp-100"
+    assert platform.stores.graph["emp-100:skill:sql"]["model_version"] == "workday-v1"
+    assert platform.stores.cache["activation:emp-100"]["recommendations"][0]["skill_id"] == "skill:sql"
+    assert platform.stores.item_bank["asm-workday"]["version"] == 2
+    assert platform.stores.attempts["attempt-workday"]["scores"]["final"] == 0.92
+    assert platform.stores.mart["skill_coverage:finance"] == 0.88
+    assert platform.stores.meta["analytics_run:workday"]["run_id"] == "workday-run"

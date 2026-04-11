@@ -2,7 +2,7 @@
 
 from fastapi.testclient import TestClient
 
-from skillsai.api import create_app
+from skillsai.app import create_app
 
 
 # Block comment:
