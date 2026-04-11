@@ -10,7 +10,7 @@ from skillsai.models import KPIQuery
 from skillsai.stores import PlatformStores
 
 
-@dataclass(slots=True)
+@dataclass
 class AnalyticsService:
     """Implements Analytics API and query stack components."""
 
@@ -110,7 +110,7 @@ class AnalyticsService:
         }
 
 
-@dataclass(slots=True)
+@dataclass
 class SnapshotScheduler:
     """Implements schedule, dependency, orchestration, and run ledger."""
 
@@ -157,7 +157,7 @@ class SnapshotScheduler:
         return {"recomputed_tasks": list(tasks), "mode": "incremental"}
 
 
-@dataclass(slots=True)
+@dataclass
 class KPIMaterializer:
     """Implements KPI definition load, calc, aggregation, and publish."""
 
@@ -236,7 +236,7 @@ class KPIMaterializer:
         return rows
 
 
-@dataclass(slots=True)
+@dataclass
 class AnalyticsLongitudinalContainer:
     """Container façade for analytics API, scheduler, and KPI materializer."""
 

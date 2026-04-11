@@ -1,5 +1,15 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import './App.css'
+import {
+  fetchAdminSummary,
+  fetchAnalyticsSnapshot,
+  fetchAssessmentWorkspace,
+  fetchBackendHealth,
+  fetchCoachingRecommendations,
+  fetchGovernanceSummary,
+  fetchIdentityProfile,
+  fetchSkillStates,
+} from './api/skillsaiClient'
 
 const SURFACE_OPTIONS = [
   { id: 'control', label: 'Skills Control Center', subtitle: 'HR Admins and Analysts' },
@@ -19,289 +29,138 @@ const PERSONA_BY_SURFACE = {
 
 const ROLE_NAVIGATION = {
   admin: ['Home', 'Skills', 'Assessments', 'Coaching', 'Mobility', 'Analytics', 'Governance', 'Admin'],
-  analyst: ['Home', 'Skills', 'Assessments', 'Mobility', 'Analytics', 'Governance'],
-  manager: ['Home', 'Skills', 'Assessments', 'Coaching', 'Mobility', 'Analytics'],
-  employee: ['Home', 'Skills', 'Assessments', 'Coaching', 'Mobility'],
+  analyst: ['Home', 'Skills', 'Assessments', 'Mobility', 'Analytics', 'Governance', 'Admin'],
+  manager: ['Home', 'Skills', 'Assessments', 'Coaching', 'Mobility', 'Analytics', 'Governance', 'Admin'],
+  employee: ['Home', 'Skills', 'Assessments', 'Coaching', 'Mobility', 'Analytics'],
 }
 
-const ENTITY_MODEL = [
-  'person',
-  'skill',
-  'role / job family',
-  'assessment',
-  'coaching plan',
-  'opportunity',
-  'audit event',
-]
+const ENTITY_MODEL = ['person', 'skill', 'assessment', 'recommendation', 'analytics snapshot', 'audit event']
 
-const LANDING_ROWS = {
-  admin: {
-    title: 'HR Admin home',
-    subtitle: 'Cockpit view for pilot operations, governance, and readiness.',
-    rows: [
-      {
-        title: 'Top row',
-        cards: [
-          { label: 'Pilot status', value: 'On track', detail: '82% milestones complete' },
-          { label: 'Active job families', value: '6', detail: '2 pending launch approval' },
-          { label: 'Data freshness', value: '4.2 hours', detail: 'Last sync at 09:42 UTC' },
-          { label: 'Governance health', value: '93/100', detail: '2 policy exceptions open' },
-        ],
-      },
-      {
-        title: 'Middle row',
-        cards: [
-          { label: 'Connectors status', value: '14/15 green', detail: 'ATS connector delayed' },
-          { label: 'Identity queue', value: '128 records', detail: '34 high-priority duplicates' },
-          { label: 'Taxonomy changes', value: '9 pending', detail: 'Awaiting owner approval' },
-          { label: 'Inference runs', value: '3 active', detail: 'Latest run at 74%' },
-        ],
-      },
-      {
-        title: 'Bottom row',
-        cards: [
-          { label: 'Executive KPI summary', value: '+6.4 readiness', detail: 'vs baseline' },
-          { label: 'Assessment windows', value: '2 this month', detail: 'Customer Ops + Finance' },
-          { label: 'Fairness alerts', value: '1 medium', detail: 'Regional confidence skew' },
-          { label: 'Audit exports', value: '4 queued', detail: 'SOC2 package due Friday' },
-        ],
-      },
-    ],
-  },
-  analyst: {
-    title: 'Analyst home',
-    subtitle: 'Exploratory analytics with intervention-to-outcome context.',
-    rows: [
-      {
-        title: 'Top row',
-        cards: [
-          { label: 'Coverage', value: '88%', detail: 'Skills inferred for active workforce' },
-          { label: 'Readiness index', value: '71', detail: '+4.1 from prior quarter' },
-          { label: 'Proficiency uplift', value: '+8%', detail: 'Post-coaching cohorts' },
-          { label: 'Mobility readiness', value: '42%', detail: 'At least one role match' },
-        ],
-      },
-      {
-        title: 'Main body',
-        cards: [
-          { label: 'Critical gap heatmap', value: '3 severe domains', detail: 'AI literacy, data governance, risk' },
-          { label: 'Trend explorer', value: '12-mo narrative', detail: 'Intervention windows highlighted' },
-          { label: 'Cohort comparison', value: '5 active cohorts', detail: 'Control vs intervention enabled' },
-          { label: 'Outcome chain', value: '14 linked actions', detail: 'Prompt -> practice -> uplift' },
-        ],
-      },
-    ],
-  },
-  manager: {
-    title: 'Manager home',
-    subtitle: 'Weekly action center for team coaching and readiness.',
-    rows: [
-      {
-        title: 'Top row',
-        cards: [
-          { label: 'Team readiness score', value: '68', detail: 'Up 2 points this week' },
-          { label: 'Assessments due', value: '7', detail: '3 overdue' },
-          { label: 'New gap alerts', value: '5', detail: 'Most in workflow automation' },
-          { label: 'Blocked opportunities', value: '4', detail: 'Skill gaps prevent internal moves' },
-        ],
-      },
-      {
-        title: 'Main body',
-        cards: [
-          { label: "This week's prompts", value: '11 generated', detail: '4 high-confidence suggestions' },
-          { label: 'Top 5 team gaps', value: 'Visible', detail: 'Ordered by business impact' },
-          { label: 'People needing support', value: '6 teammates', detail: 'Low confidence + low trend' },
-          { label: 'Suggested projects', value: '9 tasks', detail: 'Mapped to role targets' },
-        ],
-      },
-    ],
-  },
-  employee: {
-    title: 'Employee home',
-    subtitle: 'Personal growth dashboard with explainable progress.',
-    rows: [
-      {
-        title: 'Top row',
-        cards: [
-          { label: 'Current role readiness', value: '74%', detail: 'On-track for expectations' },
-          { label: 'Next role readiness', value: '61%', detail: 'Target: Senior Analyst' },
-          { label: 'Assessment status', value: '2 pending', detail: 'One closes in 3 days' },
-          { label: 'Weekly progress', value: '+3 points', detail: 'Driven by project artifact' },
-        ],
-      },
-      {
-        title: 'Main body',
-        cards: [
-          { label: 'Skill profile', value: '24 skills tracked', detail: '5 with low confidence' },
-          { label: 'Plan for this week', value: '4 guided tasks', detail: '2 coaching prompts' },
-          { label: 'Evidence to submit', value: '3 suggestions', detail: 'Artifacts or reflections' },
-          { label: 'Opportunities', value: '2 unlocked', detail: '3 close to unlocked' },
-        ],
-      },
-    ],
-  },
+const PERSONA_SESSION = {
+  admin: { actorId: 'manager-1', employeeId: 'emp-1', token: 'manager-1:default', viewAs: 'HR Admin' },
+  analyst: { actorId: 'manager-1', employeeId: 'emp-1', token: 'manager-1:default', viewAs: 'Analyst' },
+  manager: { actorId: 'manager-1', employeeId: 'emp-1', token: 'manager-1:default', viewAs: 'Manager' },
+  employee: { actorId: 'emp-1', employeeId: 'emp-1', token: 'emp-1:default', viewAs: 'Employee' },
 }
 
-const DECISION_CARDS = {
-  admin: [
-    {
-      headline: 'Prioritize identity remediation in Customer Support',
-      rationale: 'Unmatched identities are reducing evidence confidence in two job families.',
-      evidence: ['HRIS sync delta', 'IdP overlap report', 'Assessment attempts'],
-      confidence: 0.9,
-      sourceCount: 4,
-      updatedAt: '2026-04-10 14:20 UTC',
-      modelInfo: 'IdentityResolver v2.4',
-      advisory: 'Decision-impacting',
+/**
+ * Create the empty backend workspace state used before live data is loaded.
+ * // Line comment: this prevents render-time null checks from spreading throughout the UI.
+ */
+function createEmptyWorkspaceData() {
+  // Line comment: keep every page backed by a predictable object shape.
+  return {
+    health: {},
+    identity: {},
+    skills: {},
+    coaching: { employee_id: '', recommendations: [] },
+    assessment: {},
+    assessmentAttempt: {},
+    analytics: {
+      kpi: {},
+      trend: {},
+      planning: {},
     },
-    {
-      headline: 'Approve taxonomy update for AI workflow skills',
-      rationale: 'Recent project evidence shows repeated signals not represented in current taxonomy.',
-      evidence: ['Project artifacts', 'Manager feedback', 'Inference conflict report'],
-      confidence: 0.82,
-      sourceCount: 3,
-      updatedAt: '2026-04-11 08:12 UTC',
-      modelInfo: 'TaxonomyAssist v1.9',
-      advisory: 'Advisory',
-    },
-  ],
-  analyst: [
-    {
-      headline: 'Investigate confidence skew for EMEA cohort',
-      rationale: 'Readiness uplift appears strong, but confidence range is significantly wider than peers.',
-      evidence: ['Cohort trend line', 'Evidence composition chart', 'Data quality flags'],
-      confidence: 0.79,
-      sourceCount: 5,
-      updatedAt: '2026-04-11 09:05 UTC',
-      modelInfo: 'AnalyticsNarrative v3.1',
-      advisory: 'Decision-impacting',
-    },
-  ],
-  manager: [
-    {
-      headline: 'Assign targeted practice to unblock role readiness',
-      rationale: 'Three team members are within one proficiency level of target role requirements.',
-      evidence: ['Skill gap matrix', 'Assessment outcomes', 'Project task history'],
-      confidence: 0.86,
-      sourceCount: 6,
-      updatedAt: '2026-04-11 07:40 UTC',
-      modelInfo: 'CoachingPlanner v2.0',
-      advisory: 'Advisory',
-    },
-    {
-      headline: 'Hold 1:1 on data storytelling competency',
-      rationale: 'Performance trend dipped after recent project transition.',
-      evidence: ['Trend arrow', 'Manager observations', 'Presentation rubric'],
-      confidence: 0.72,
-      sourceCount: 3,
-      updatedAt: '2026-04-10 17:52 UTC',
-      modelInfo: 'SignalFusion v1.5',
-      advisory: 'Advisory',
-    },
-  ],
-  employee: [
-    {
-      headline: 'Complete scenario assessment for workflow optimization',
-      rationale: 'Completing this assessment can increase next-role readiness by an estimated 6 points.',
-      evidence: ['Role benchmark', 'Learning completion history', 'Current skill confidence'],
-      confidence: 0.84,
-      sourceCount: 5,
-      updatedAt: '2026-04-11 06:15 UTC',
-      modelInfo: 'GrowthGuide v1.7',
-      advisory: 'Advisory',
-    },
-  ],
+    governance: {},
+    admin: {},
+  }
 }
 
-const SKILL_MAP = [
-  { domain: 'Technical', skill: 'Data modeling', inferred: 'L3', target: 'L4', gap: 1, confidence: 'High', trend: 'Up', evidence: 9 },
-  { domain: 'Technical', skill: 'Workflow automation', inferred: 'L2', target: 'L4', gap: 2, confidence: 'Medium', trend: 'Flat', evidence: 6 },
-  { domain: 'Domain', skill: 'Regulatory literacy', inferred: 'L2', target: 'L3', gap: 1, confidence: 'High', trend: 'Up', evidence: 7 },
-  { domain: 'Leadership', skill: 'Coaching peers', inferred: 'L2', target: 'L3', gap: 1, confidence: 'Medium', trend: 'Up', evidence: 4 },
-  { domain: 'Workflow / Process', skill: 'Cross-team planning', inferred: 'L3', target: 'L4', gap: 1, confidence: 'Medium', trend: 'Flat', evidence: 5 },
-  { domain: 'AI / Digital', skill: 'Prompt engineering', inferred: 'L1', target: 'L3', gap: 2, confidence: 'Low', trend: 'Up', evidence: 3 },
-]
+/**
+ * Format one backend ratio or decimal into a readable percentage.
+ * // Line comment: the backend returns fractional values for skill and analytics metrics.
+ */
+function formatPercentage(value) {
+  // Line comment: fallback to a placeholder when the backend has no value yet.
+  if (value === null || value === undefined || Number.isNaN(Number(value))) {
+    return 'n/a'
+  }
+  return `${Math.round(Number(value) * 100)}%`
+}
 
-const EVIDENCE_TIMELINE = [
-  { type: 'Assessment result', detail: 'Scenario assessment: 78%', date: '2026-04-05' },
-  { type: 'Learning completion', detail: 'Advanced analytics pathway', date: '2026-04-03' },
-  { type: 'Project artifact', detail: 'Quarterly forecast notebook', date: '2026-03-29' },
-  { type: 'Manager feedback', detail: 'Strong communication in stakeholder review', date: '2026-03-26' },
-  { type: 'External certification', detail: 'Data governance practitioner', date: '2026-03-14' },
-]
+/**
+ * Convert a seeded skill id into a human-readable label.
+ * // Line comment: seed-data uses ids like `skill:python` that are not presentation friendly.
+ */
+function formatSkillLabel(skillId) {
+  // Line comment: normalize the technical seed identifier into title-like text.
+  return String(skillId)
+    .replace(/^skill:/, '')
+    .split('-')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ')
+}
 
-const SETUP_STEPS = [
-  { name: 'Connect source systems', eta: '15 min', permissions: 'Tenant admin', data: 'HRIS, LMS, ATS, IdP', mutable: 'Can re-auth and add connectors later' },
-  { name: 'Select business unit / scope', eta: '5 min', permissions: 'BU owner', data: 'Org hierarchy', mutable: 'Can expand or narrow scope later' },
-  { name: 'Pick job family', eta: '5 min', permissions: 'HR admin', data: 'Role catalog', mutable: 'Additional families can be onboarded' },
-  { name: 'Review imported roles', eta: '10 min', permissions: 'HR analyst', data: 'Role metadata', mutable: 'Role mappings are editable post-launch' },
-  { name: 'Generate/import skills taxonomy', eta: '20 min', permissions: 'Taxonomy editor', data: 'Existing skill dictionary', mutable: 'Versioned taxonomy allows rollback' },
-  { name: 'Set proficiency scale', eta: '5 min', permissions: 'HR admin', data: 'Scale configuration', mutable: 'Scale updates trigger version history' },
-  { name: 'Review evidence rules', eta: '15 min', permissions: 'Governance lead', data: 'Evidence source policy', mutable: 'Rules can be tuned with audit logs' },
-  { name: 'Preview sample profiles', eta: '8 min', permissions: 'Pilot manager', data: 'Synthetic + pilot records', mutable: 'Can regenerate preview anytime' },
-  { name: 'Approve and launch baseline', eta: '3 min', permissions: 'Program owner', data: 'Launch checklist', mutable: 'Baseline snapshots stay immutable' },
-]
-
-const ASSESSMENT_ITEM_TYPES = ['Multiple choice', 'Scenario response', 'Artifact upload', 'Reflection', 'Live rubric input']
-const ASSESSMENT_VALIDATIONS = ['Blueprint coverage check', 'Skill mapping completeness', 'Rubric weight balance', 'Accessibility warnings']
-const ANALYTICS_TABS = [
-  'Coverage',
-  'Gap hotspots',
-  'Proficiency distribution',
-  'Readiness trend',
-  'Assessment outcomes',
-  'Coaching effectiveness',
-  'Mobility readiness',
-  'Governance / fairness',
-]
-const DOMAIN_COMPONENTS = [
-  'Skill proficiency matrix',
-  'Evidence timeline',
-  'Confidence meter',
-  'Lineage drawer',
-  'Recommendation card',
-  'Cohort compare table',
-  'Gap heatmap',
-  'Assessment blueprint builder',
-  'Role-to-skill mapper',
-  'Opportunity match rationale panel',
-  'Governance rule editor',
-  'Audit log explorer',
-  'KPI card with baseline delta',
-  'Intervention timeline',
-]
+/**
+ * Build the home-page KPI cards from live backend responses.
+ * // Line comment: the landing page should summarize backend state instead of fixed mock metrics.
+ */
+function createHomeCards(workspace) {
+  // Line comment: derive lightweight KPIs from the fetched backend payloads.
+  const skillRows = Object.values(workspace.skills || {})
+  const recommendationCount = workspace.coaching?.recommendations?.length || 0
+  const attemptScore = workspace.assessmentAttempt?.scores?.final
+  const analyticsValue = workspace.analytics?.kpi?.data?.value
+  return [
+    {
+      label: 'Backend status',
+      value: workspace.health?.status || 'unknown',
+      detail: workspace.health?.service || 'FastAPI health endpoint',
+    },
+    {
+      label: 'Skills tracked',
+      value: String(skillRows.length),
+      detail: `Subject employee: ${workspace.coaching?.employee_id || 'emp-1'}`,
+    },
+    {
+      label: 'Coaching recommendations',
+      value: String(recommendationCount),
+      detail: 'Returned from activation-services seed data',
+    },
+    {
+      label: 'Latest assessment score',
+      value: formatPercentage(attemptScore),
+      detail: workspace.assessmentAttempt?.session?.status || 'No attempt status available',
+    },
+    {
+      label: 'Coverage KPI',
+      value: formatPercentage(analyticsValue),
+      detail: workspace.analytics?.kpi?.metric || 'skill_coverage',
+    },
+    {
+      label: 'Audit events',
+      value: String(workspace.governance?.audit_count || 0),
+      detail: `Taxonomy: ${workspace.governance?.active_taxonomy_version || 'unknown'}`,
+    },
+  ]
+}
 
 /**
  * Render one trust-forward recommendation card.
- * // Line comment: this reusable card keeps explainability visible in every workflow.
+ * // Line comment: recommendation cards now reflect live activation-service responses.
  */
-function DecisionCard({ card }) {
-  // Line comment: confidence is formatted into a readable percentage badge.
-  const confidenceText = `${Math.round(card.confidence * 100)}% confidence`
+function DecisionCard({ recommendation, personaLabel }) {
+  // Line comment: convert backend priority scores into a readable confidence-style badge.
+  const confidenceText = formatPercentage(recommendation.priority)
   return (
     <article className="decision-card">
       <div className="decision-header">
-        <h4>{card.headline}</h4>
+        <h4>{formatSkillLabel(recommendation.skill_id)}</h4>
         <span className="confidence-badge">{confidenceText}</span>
       </div>
-      <p>{card.rationale}</p>
+      <p>
+        {personaLabel} should focus on <strong>{formatSkillLabel(recommendation.skill_id)}</strong> next.
+      </p>
       <div className="chip-row">
-        {card.evidence.map((item) => (
-          <span key={item} className="pill">
-            {item}
-          </span>
-        ))}
+        <span className="pill">{recommendation.type || 'coaching'}</span>
+        <span className="pill">Seed-backed recommendation</span>
+        <span className="pill">Live backend API</span>
       </div>
       <div className="decision-metadata">
-        <span>Source count: {card.sourceCount}</span>
-        <span>Last updated: {card.updatedAt}</span>
-        <span>Model: {card.modelInfo}</span>
-        <span>{card.advisory}</span>
-      </div>
-      <div className="decision-actions">
-        <button type="button">View lineage</button>
-        <button type="button">Override / acknowledge</button>
-        <button type="button">Audit details</button>
+        <span>Skill id: {recommendation.skill_id}</span>
+        <span>Priority: {recommendation.priority}</span>
+        <span>Source: activation-services</span>
+        <span>Advisory only</span>
       </div>
     </article>
   )
@@ -309,10 +168,10 @@ function DecisionCard({ card }) {
 
 /**
  * Render one KPI card for cockpit and workspace surfaces.
- * // Line comment: cards are intentionally dense but structured for quick scanning.
+ * // Line comment: cards keep backend response summaries easy to scan.
  */
 function KpiCard({ card }) {
-  // Line comment: detail text surfaces context without opening a side panel.
+  // Line comment: detail text surfaces context without requiring a secondary panel.
   return (
     <article className="kpi-card">
       <h4>{card.label}</h4>
@@ -323,229 +182,52 @@ function KpiCard({ card }) {
 }
 
 /**
- * Render persona-specific home content rows.
- * // Line comment: home pages mirror the product spec's role-based landing experience.
+ * Render the live backend-backed landing page.
+ * // Line comment: this page summarizes identity, skills, coaching, analytics, and governance responses.
  */
-function LandingPage({ persona }) {
-  // Line comment: fallback prevents rendering issues when persona is switched quickly.
-  const content = LANDING_ROWS[persona] || LANDING_ROWS.manager
+function LandingPage({ personaLabel, workspace }) {
+  // Line comment: derive top-level KPI cards from the aggregated backend workspace state.
+  const cards = createHomeCards(workspace)
+  const recommendations = workspace.coaching?.recommendations || []
   return (
     <section className="page-grid">
       <div className="panel">
-        <h2>{content.title}</h2>
-        <p className="muted-text">{content.subtitle}</p>
-      </div>
-      {content.rows.map((row) => (
-        <div key={row.title} className="panel">
-          <h3>{row.title}</h3>
-          <div className="kpi-grid">
-            {row.cards.map((card) => (
-              <KpiCard key={card.label} card={card} />
-            ))}
-          </div>
-        </div>
-      ))}
-      <div className="panel">
-        <h3>Decision cards</h3>
-        <div className="decision-grid">
-          {(DECISION_CARDS[persona] || []).map((card) => (
-            <DecisionCard key={card.headline} card={card} />
-          ))}
-        </div>
-      </div>
-    </section>
-  )
-}
-
-/**
- * Render the signature skill profile screen with five vertical sections.
- * // Line comment: this layout anchors evidence, confidence, and actionability together.
- */
-function SkillProfilePage() {
-  // Line comment: skill rows are grouped by domain to keep scan patterns predictable.
-  const groupedRows = SKILL_MAP.reduce((collection, row) => {
-    const nextCollection = { ...collection }
-    const current = nextCollection[row.domain] || []
-    nextCollection[row.domain] = [...current, row]
-    return nextCollection
-  }, {})
-
-  return (
-    <section className="page-grid">
-      <div className="panel">
-        <h2>Skill Profile: Maya Chen</h2>
-        <div className="profile-header-grid">
-          <p>Role: Senior Operations Analyst</p>
-          <p>Job family: Operations Excellence</p>
-          <p>Manager: Tomas Reid</p>
-          <p>Last updated: 2026-04-11 08:02 UTC</p>
-          <p>Overall readiness: 74%</p>
-          <p>Governance state: Consent active / explainable mode</p>
-        </div>
-      </div>
-      <div className="panel">
-        <h3>Skill map</h3>
-        {Object.entries(groupedRows).map(([domain, rows]) => (
-          <div key={domain} className="domain-block">
-            <h4>{domain}</h4>
-            <table>
-              <thead>
-                <tr>
-                  <th>Skill</th>
-                  <th>Inferred</th>
-                  <th>Target</th>
-                  <th>Gap</th>
-                  <th>Confidence</th>
-                  <th>Trend</th>
-                  <th>Evidence</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row) => (
-                  <tr key={`${domain}-${row.skill}`}>
-                    <td>{row.skill}</td>
-                    <td>{row.inferred}</td>
-                    <td>{row.target}</td>
-                    <td>{row.gap}</td>
-                    <td>{row.confidence}</td>
-                    <td>{row.trend}</td>
-                    <td>{row.evidence}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ))}
-      </div>
-      <div className="panel">
-        <h3>Evidence panel</h3>
-        <ul className="timeline-list">
-          {EVIDENCE_TIMELINE.map((item) => (
-            <li key={`${item.type}-${item.date}`}>
-              <span>{item.date}</span>
-              <strong>{item.type}</strong>
-              <p>{item.detail}</p>
-            </li>
-          ))}
-        </ul>
-      </div>
-      <div className="panel">
-        <h3>Explanation panel</h3>
-        <p>
-          This skill estimate is based on recent assessments, work artifacts, and manager observations.
-        </p>
-        <ul className="simple-list">
-          <li>Confidence drivers: recent project evidence, role-aligned assessments, improved trend.</li>
-          <li>Conflicting signals: low evidence density for AI / Digital skills.</li>
-          <li>Freshness warning: last external certification is older than 90 days.</li>
-          <li>Version lineage: SignalFusion v1.5 with Taxonomy v2026.04.</li>
-        </ul>
-      </div>
-      <div className="panel">
-        <h3>Actions rail</h3>
-        <div className="action-grid">
-          <button type="button">Assign assessment</button>
-          <button type="button">Create coaching plan</button>
-          <button type="button">Suggest learning</button>
-          <button type="button">Compare to target role</button>
-          <button type="button">Export profile</button>
-          <button type="button">Request review / challenge inference</button>
-        </div>
-      </div>
-    </section>
-  )
-}
-
-/**
- * Render first-class assessments authoring, delivery, and results.
- * // Line comment: the UI mirrors backend separation across authoring and evidence publishing.
- */
-function AssessmentsPage() {
-  // Line comment: all three sections stay visible to communicate lifecycle connectivity.
-  return (
-    <section className="page-grid">
-      <div className="panel">
-        <h2>Assessment Studio</h2>
-        <div className="three-pane">
-          <div>
-            <h3>Blueprint structure</h3>
-            <ul className="simple-list">
-              <li>Section 1: Role fundamentals</li>
-              <li>Section 2: Workflow simulation</li>
-              <li>Section 3: Reflection and artifact</li>
-            </ul>
-          </div>
-          <div>
-            <h3>Item editor</h3>
-            <ul className="simple-list">
-              {ASSESSMENT_ITEM_TYPES.map((item) => (
-                <li key={item}>{item}</li>
-              ))}
-            </ul>
-          </div>
-          <div>
-            <h3>Rubric and skill mapping</h3>
-            <ul className="simple-list">
-              <li>Role-specific forms enabled</li>
-              <li>Version compare available</li>
-              <li>Publish workflow with approvals</li>
-            </ul>
-          </div>
-        </div>
-      </div>
-      <div className="panel">
-        <h3>Validation warnings</h3>
-        <div className="chip-row">
-          {ASSESSMENT_VALIDATIONS.map((item) => (
-            <span key={item} className="pill">
-              {item}
-            </span>
-          ))}
-        </div>
-        <h3>Delivery mode</h3>
-        <ul className="simple-list">
-          <li>One-question or section-based mode</li>
-          <li>Visible progress with autosave and resume</li>
-          <li>Accommodation support and optional time rules</li>
-          <li>Clear explanation of how responses are used</li>
-        </ul>
-      </div>
-      <div className="panel">
-        <h3>Results screen</h3>
-        <div className="kpi-grid">
-          <KpiCard card={{ label: 'Score summary', value: '78%', detail: 'Reliability: 0.84' }} />
-          <KpiCard card={{ label: 'Strengths', value: '3', detail: 'Analysis, communication, planning' }} />
-          <KpiCard card={{ label: 'Growth areas', value: '2', detail: 'Automation and AI literacy' }} />
-          <KpiCard card={{ label: 'Next actions', value: '4', detail: 'Mapped to weekly plan' }} />
-        </div>
-      </div>
-    </section>
-  )
-}
-
-/**
- * Render coaching workflows for manager and employee action loops.
- * // Line comment: coaching cards link team gaps directly to interventions.
- */
-function CoachingPage({ persona }) {
-  // Line comment: manager and employee copy tone shifts while using shared design patterns.
-  const isManagerSurface = persona === 'manager'
-  return (
-    <section className="page-grid">
-      <div className="panel">
-        <h2>{isManagerSurface ? 'Weekly coaching pack' : 'Personalized weekly plan'}</h2>
+        <h2>{personaLabel} home</h2>
         <p className="muted-text">
-          {isManagerSurface
-            ? 'Top team gaps, prompts, and 1:1 talking points in one operational flow.'
-            : 'Clear weekly actions tied to role targets, evidence quality, and confidence.'}
+          This page is now assembled from live backend APIs seeded from the shared `seed-data` folder.
         </p>
       </div>
       <div className="panel">
-        <h3>Trust-forward recommendations</h3>
+        <h3>Workspace summary</h3>
+        <div className="kpi-grid">
+          {cards.map((card) => (
+            <KpiCard key={card.label} card={card} />
+          ))}
+        </div>
+      </div>
+      <div className="panel">
+        <h3>Identity and tenant context</h3>
+        <div className="profile-header-grid">
+          <p>Actor id: {workspace.identity?.actor_id || 'n/a'}</p>
+          <p>Tenant: {workspace.identity?.tenant_id || 'n/a'}</p>
+          <p>Roles: {(workspace.identity?.roles || []).join(', ') || 'n/a'}</p>
+          <p>Seed data dir: {workspace.admin?.seed_data_dir || 'n/a'}</p>
+        </div>
+      </div>
+      <div className="panel">
+        <h3>Live recommendations</h3>
         <div className="decision-grid">
-          {(DECISION_CARDS[persona] || DECISION_CARDS.employee).map((card) => (
-            <DecisionCard key={card.headline} card={card} />
-          ))}
+          {recommendations.length > 0 ? (
+            recommendations.map((recommendation) => (
+              <DecisionCard
+                key={`${recommendation.skill_id}-${recommendation.priority}`}
+                recommendation={recommendation}
+                personaLabel={personaLabel}
+              />
+            ))
+          ) : (
+            <p className="muted-text">No coaching recommendations were returned by the backend.</p>
+          )}
         </div>
       </div>
     </section>
@@ -553,186 +235,379 @@ function CoachingPage({ persona }) {
 }
 
 /**
- * Render internal mobility readiness and opportunity rationale.
- * // Line comment: opportunity matching keeps evidence and confidence visible.
+ * Render the live skill profile from backend skill-state data.
+ * // Line comment: this page shows the direct output of the core-intelligence read API.
  */
-function MobilityPage() {
-  // Line comment: list layout makes it easy to compare near-match opportunities.
+function SkillsPage({ workspace, searchText }) {
+  // Line comment: filter skills locally so the global search box remains useful.
+  const rows = Object.entries(workspace.skills || {})
+    .map(([skillId, state]) => ({
+      skillId,
+      ...state,
+    }))
+    .filter((row) => {
+      const normalizedSearch = searchText.trim().toLowerCase()
+      if (!normalizedSearch) {
+        return true
+      }
+      return `${row.skillId} ${row.explanation || ''}`.toLowerCase().includes(normalizedSearch)
+    })
   return (
     <section className="page-grid">
       <div className="panel">
-        <h2>Mobility readiness</h2>
-        <div className="kpi-grid">
-          <KpiCard card={{ label: 'Open opportunities', value: '12', detail: 'Filtered by role family and region' }} />
-          <KpiCard card={{ label: 'Ready now', value: '3', detail: 'Match confidence above 85%' }} />
-          <KpiCard card={{ label: 'Close to unlock', value: '5', detail: 'Within one skill level of target' }} />
-          <KpiCard card={{ label: 'Blocked', value: '4', detail: 'Requires assessment evidence refresh' }} />
+        <h2>Skill profile</h2>
+        <div className="profile-header-grid">
+          <p>Actor id: {workspace.identity?.actor_id || 'n/a'}</p>
+          <p>Tenant: {workspace.identity?.tenant_id || 'n/a'}</p>
+          <p>Active taxonomy: {workspace.governance?.active_taxonomy_version || 'n/a'}</p>
+          <p>Skills returned: {rows.length}</p>
         </div>
       </div>
       <div className="panel">
-        <h3>Opportunity match rationale panel</h3>
-        <ul className="simple-list">
-          <li>Role: Senior Process Analyst - Match 88% (confidence high)</li>
-          <li>Why you match: strong planning and stakeholder evidence, verified in last 30 days</li>
-          <li>Gap to close: workflow automation L2 to L3</li>
-          <li>Recommended intervention: scenario assessment + guided project</li>
-          <li>Governance note: advisory recommendation, manager approval required</li>
-        </ul>
-      </div>
-    </section>
-  )
-}
-
-/**
- * Render narrative-friendly analytics and longitudinal exploration.
- * // Line comment: controls and drill-downs make intervention history first-class.
- */
-function AnalyticsPage() {
-  // Line comment: tabs mirror the product-level analytics domains from the spec.
-  return (
-    <section className="page-grid">
-      <div className="panel">
-        <h2>Analytics and longitudinal views</h2>
-        <div className="control-grid">
-          <label>
-            Time range
-            <input defaultValue="Last 12 months" />
-          </label>
-          <label>
-            Job family
-            <input defaultValue="Operations Excellence" />
-          </label>
-          <label>
-            Team / region / level
-            <input defaultValue="All / Global / IC+Manager" />
-          </label>
-          <label>
-            Evidence type
-            <input defaultValue="Assessment + project + feedback" />
-          </label>
-          <label>
-            Assessment cohort
-            <input defaultValue="Q2 pilot cohort" />
-          </label>
-          <label>
-            Control vs intervention
-            <input defaultValue="Control enabled" />
-          </label>
-        </div>
-      </div>
-      <div className="panel">
-        <h3>Main canvas tabs</h3>
-        <div className="chip-row">
-          {ANALYTICS_TABS.map((item) => (
-            <span key={item} className="pill">
-              {item}
-            </span>
-          ))}
-        </div>
-        <h3>Drill-down behavior</h3>
-        <ul className="simple-list">
-          <li>Cohort details with evidence composition</li>
-          <li>Intervention history linked to trend inflections</li>
-          <li>Data quality notes and confidence bands</li>
-          <li>Export package for compliance and reviews</li>
-        </ul>
-      </div>
-      <div className="panel">
-        <h3>Longitudinal analysis patterns</h3>
-        <ul className="simple-list">
-          <li>Trend lines and cohort retention curves</li>
-          <li>Before/after intervention comparisons</li>
-          <li>Waterfall chart for gap closure</li>
-          <li>Confidence-banded readiness forecast</li>
-          <li>Last successful snapshot with audit-linked completion events</li>
-        </ul>
-      </div>
-    </section>
-  )
-}
-
-/**
- * Render governance, audit, and fairness controls.
- * // Line comment: governance state is visible from shell down to record-level actions.
- */
-function GovernancePage() {
-  // Line comment: queue-style sections highlight operational compliance workflows.
-  return (
-    <section className="page-grid">
-      <div className="panel">
-        <h2>Governance center</h2>
-        <div className="kpi-grid">
-          <KpiCard card={{ label: 'Consent coverage', value: '97.2%', detail: '1.1% awaiting refresh' }} />
-          <KpiCard card={{ label: 'Access policy', value: 'Compliant', detail: 'No critical violations open' }} />
-          <KpiCard card={{ label: 'Retention policy', value: '2 exceptions', detail: 'Escalated to data steward' }} />
-          <KpiCard card={{ label: 'Bias review cadence', value: 'Monthly', detail: 'Next review in 6 days' }} />
-        </div>
-      </div>
-      <div className="panel">
-        <h3>Audit log explorer</h3>
-        <ul className="simple-list">
-          <li>2026-04-11 08:11 UTC - Recommendation overridden by HR Admin (ticket GOV-1182)</li>
-          <li>2026-04-10 15:44 UTC - Fairness threshold update approved by Governance Lead</li>
-          <li>2026-04-10 09:23 UTC - Role mapping export generated for compliance review</li>
-          <li>2026-04-09 18:02 UTC - Retention rule exception acknowledged</li>
-        </ul>
-      </div>
-    </section>
-  )
-}
-
-/**
- * Render admin setup workflows, integrations, and design-system primitives.
- * // Line comment: setup wizard is optimized for pilot-first onboarding speed.
- */
-function AdminPage() {
-  // Line comment: integration and wizard content aligns to enterprise implementation requirements.
-  return (
-    <section className="page-grid">
-      <div className="panel">
-        <h2>Integrations and data quality</h2>
-        <div className="chip-row">
-          <span className="pill">HRIS</span>
-          <span className="pill">LMS / LXP</span>
-          <span className="pill">ATS</span>
-          <span className="pill">IdP</span>
-          <span className="pill">External assessments</span>
-        </div>
-      </div>
-      <div className="panel">
-        <h3>Job family setup wizard</h3>
+        <h3>Seeded skill states</h3>
         <table>
           <thead>
             <tr>
-              <th>Step</th>
-              <th>Expected time</th>
-              <th>Required permissions</th>
-              <th>Data used</th>
-              <th>What can change later</th>
+              <th>Skill</th>
+              <th>Proficiency</th>
+              <th>Confidence</th>
+              <th>Gap</th>
+              <th>Model version</th>
+              <th>Explanation</th>
             </tr>
           </thead>
           <tbody>
-            {SETUP_STEPS.map((step) => (
-              <tr key={step.name}>
-                <td>{step.name}</td>
-                <td>{step.eta}</td>
-                <td>{step.permissions}</td>
-                <td>{step.data}</td>
-                <td>{step.mutable}</td>
+            {rows.map((row) => (
+              <tr key={row.skillId}>
+                <td>{formatSkillLabel(row.skillId)}</td>
+                <td>{formatPercentage(row.proficiency)}</td>
+                <td>{formatPercentage(row.confidence)}</td>
+                <td>{formatPercentage(row.gap)}</td>
+                <td>{row.model_version || 'n/a'}</td>
+                <td>{row.explanation || 'No explanation provided.'}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+    </section>
+  )
+}
+
+/**
+ * Render the assessment page from live assessment package and attempt data.
+ * // Line comment: the frontend now reads package structure and attempt state from backend APIs.
+ */
+function AssessmentsPage({ workspace }) {
+  // Line comment: unpack the package and attempt data loaded from the gateway read path.
+  const assessment = workspace.assessment || {}
+  const assessmentAttempt = workspace.assessmentAttempt || {}
+  const items = assessment.items || []
+  const sections = assessment.blueprint?.sections || []
+  return (
+    <section className="page-grid">
       <div className="panel">
-        <h3>Most important reusable components</h3>
+        <h2>Assessments</h2>
+        <div className="kpi-grid">
+          <KpiCard
+            card={{
+              label: 'Assessment id',
+              value: assessment.assessment_id || 'n/a',
+              detail: `Version ${assessment.version || 'n/a'}`,
+            }}
+          />
+          <KpiCard
+            card={{
+              label: 'Attempt status',
+              value: assessmentAttempt.session?.status || 'n/a',
+              detail: assessmentAttempt.session?.attempt_id || 'No attempt id',
+            }}
+          />
+          <KpiCard
+            card={{
+              label: 'Final score',
+              value: formatPercentage(assessmentAttempt.scores?.final),
+              detail: 'Returned from the attempts store',
+            }}
+          />
+          <KpiCard
+            card={{
+              label: 'Items',
+              value: String(items.length),
+              detail: `${sections.length} seeded section(s)`,
+            }}
+          />
+        </div>
+      </div>
+      <div className="panel">
+        <h3>Blueprint</h3>
+        <ul className="simple-list">
+          {sections.map((section) => (
+            <li key={section.name}>{section.name}</li>
+          ))}
+        </ul>
+      </div>
+      <div className="panel">
+        <h3>Published items</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Item id</th>
+              <th>Skill</th>
+              <th>Prompt</th>
+              <th>Seeded response</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((item) => (
+              <tr key={item.id}>
+                <td>{item.id}</td>
+                <td>{formatSkillLabel(item.skill_id)}</td>
+                <td>{item.prompt}</td>
+                <td>{String(workspace.assessmentAttempt?.responses?.[item.id] ?? 'n/a')}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  )
+}
+
+/**
+ * Render coaching workflows from live backend recommendations.
+ * // Line comment: activation recommendations replace the previous static decision cards.
+ */
+function CoachingPage({ workspace, personaLabel }) {
+  // Line comment: read recommendations directly from the activation API response.
+  const recommendations = workspace.coaching?.recommendations || []
+  return (
+    <section className="page-grid">
+      <div className="panel">
+        <h2>{personaLabel} coaching workspace</h2>
+        <p className="muted-text">
+          Recommendations are now loaded from `/coaching` instead of embedded frontend arrays.
+        </p>
+      </div>
+      <div className="panel">
+        <h3>Recommendations</h3>
+        <div className="decision-grid">
+          {recommendations.length > 0 ? (
+            recommendations.map((recommendation) => (
+              <DecisionCard
+                key={`${recommendation.skill_id}-${recommendation.priority}`}
+                recommendation={recommendation}
+                personaLabel={personaLabel}
+              />
+            ))
+          ) : (
+            <p className="muted-text">No coaching recommendations are available for this actor.</p>
+          )}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+/**
+ * Render mobility readiness using the same live backend skill and coaching signals.
+ * // Line comment: this page derives near-term mobility actions from skills plus recommendations.
+ */
+function MobilityPage({ workspace }) {
+  // Line comment: combine coaching signals and skill gaps into a lightweight readiness view.
+  const recommendations = workspace.coaching?.recommendations || []
+  const skillCount = Object.keys(workspace.skills || {}).length
+  return (
+    <section className="page-grid">
+      <div className="panel">
+        <h2>Mobility readiness</h2>
+        <div className="kpi-grid">
+          <KpiCard card={{ label: 'Tracked skills', value: String(skillCount), detail: 'Pulled from `/skills`' }} />
+          <KpiCard
+            card={{
+              label: 'Recommended actions',
+              value: String(recommendations.length),
+              detail: 'Pulled from `/coaching`',
+            }}
+          />
+          <KpiCard
+            card={{
+              label: 'Current readiness signal',
+              value: formatPercentage(workspace.analytics?.kpi?.data?.value),
+              detail: 'Coverage KPI as a simple mobility proxy',
+            }}
+          />
+          <KpiCard
+            card={{
+              label: 'Assessment support',
+              value: formatPercentage(workspace.assessmentAttempt?.scores?.final),
+              detail: 'Most recent seeded attempt score',
+            }}
+          />
+        </div>
+      </div>
+      <div className="panel">
+        <h3>Opportunity rationale</h3>
+        <ul className="simple-list">
+          {recommendations.map((recommendation) => (
+            <li key={`mobility-${recommendation.skill_id}`}>
+              Prioritize <strong>{formatSkillLabel(recommendation.skill_id)}</strong> with priority{' '}
+              {formatPercentage(recommendation.priority)} to improve next-role readiness.
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  )
+}
+
+/**
+ * Render analytics views from live backend analytics queries.
+ * // Line comment: each panel corresponds to a real `/analytics` request instead of mock copy.
+ */
+function AnalyticsPage({ workspace }) {
+  // Line comment: unpack KPI, trend, and planning snapshots returned by the analytics container.
+  const kpi = workspace.analytics?.kpi || {}
+  const trend = workspace.analytics?.trend || {}
+  const planning = workspace.analytics?.planning || {}
+  return (
+    <section className="page-grid">
+      <div className="panel">
+        <h2>Analytics and longitudinal views</h2>
+        <div className="kpi-grid">
+          <KpiCard
+            card={{
+              label: kpi.metric || 'Coverage metric',
+              value: formatPercentage(kpi.data?.value),
+              detail: `${kpi.cohort || 'all'} cohort`,
+            }}
+          />
+          <KpiCard
+            card={{
+              label: 'Trend average',
+              value: formatPercentage(trend.data?.average),
+              detail: trend.metric || 'trend.skill_coverage',
+            }}
+          />
+          <KpiCard
+            card={{
+              label: 'Planning target',
+              value: String(planning.data?.target ?? 'n/a'),
+              detail: planning.metric || 'plan.hiring_capacity',
+            }}
+          />
+          <KpiCard
+            card={{
+              label: 'Trend points',
+              value: String(trend.data?.series?.length || 0),
+              detail: 'Loaded from analytics warehouse seed rows',
+            }}
+          />
+        </div>
+      </div>
+      <div className="panel">
+        <h3>Trend snapshot</h3>
+        <ul className="simple-list">
+          {(trend.data?.series || []).map((point, index) => (
+            <li key={`trend-${index}`}>Point {index + 1}: {formatPercentage(point)}</li>
+          ))}
+        </ul>
+      </div>
+      <div className="panel">
+        <h3>Planning snapshot</h3>
+        <ul className="simple-list">
+          <li>Conservative: {String(planning.data?.conservative ?? 'n/a')}</li>
+          <li>Target: {String(planning.data?.target ?? 'n/a')}</li>
+          <li>Aggressive: {String(planning.data?.aggressive ?? 'n/a')}</li>
+        </ul>
+      </div>
+    </section>
+  )
+}
+
+/**
+ * Render governance state from the live backend governance summary.
+ * // Line comment: this page now reads audit metadata rather than showing static audit lines.
+ */
+function GovernancePage({ workspace }) {
+  // Line comment: unpack the governance payload returned by the gateway query path.
+  const governance = workspace.governance || {}
+  return (
+    <section className="page-grid">
+      <div className="panel">
+        <h2>Governance center</h2>
+        <div className="kpi-grid">
+          <KpiCard card={{ label: 'Audit events', value: String(governance.audit_count || 0), detail: 'Total audit rows in store' }} />
+          <KpiCard
+            card={{
+              label: 'Time-series events',
+              value: String(governance.time_series_count || 0),
+              detail: 'Signals and action history',
+            }}
+          />
+          <KpiCard
+            card={{
+              label: 'Taxonomy version',
+              value: governance.active_taxonomy_version || 'n/a',
+              detail: 'Loaded from core-intelligence seed data',
+            }}
+          />
+          <KpiCard
+            card={{
+              label: 'Seed source',
+              value: governance.seed_data_dir || 'n/a',
+              detail: 'Shared backend seed-data folder',
+            }}
+          />
+        </div>
+      </div>
+      <div className="panel">
+        <h3>Latest audit events</h3>
+        <ul className="simple-list">
+          {(governance.latest_audit_events || []).map((event, index) => (
+            <li key={`audit-${index}`}>{JSON.stringify(event)}</li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  )
+}
+
+/**
+ * Render admin metadata from the live backend admin summary.
+ * // Line comment: this page surfaces seed-data and module-loading metadata instead of hardcoded setup steps.
+ */
+function AdminPage({ workspace }) {
+  // Line comment: unpack admin summary fields from the backend response.
+  const admin = workspace.admin || {}
+  return (
+    <section className="page-grid">
+      <div className="panel">
+        <h2>Admin and seed-data configuration</h2>
+        <div className="kpi-grid">
+          <KpiCard card={{ label: 'Identity records', value: String(admin.identity_count || 0), detail: 'Loaded into cache from seed-data' }} />
+          <KpiCard card={{ label: 'Assessment packages', value: String(admin.assessment_count || 0), detail: 'Loaded into the item bank' }} />
+          <KpiCard card={{ label: 'Seed modules', value: String((admin.seed_modules || []).length), detail: (admin.seed_modules || []).join(', ') || 'n/a' }} />
+          <KpiCard card={{ label: 'Request samples', value: String((admin.request_samples || []).length), detail: 'Loaded from platform seed-data' }} />
+        </div>
+      </div>
+      <div className="panel">
+        <h3>Available payloads</h3>
         <div className="chip-row">
-          {DOMAIN_COMPONENTS.map((component) => (
-            <span key={component} className="pill">
-              {component}
+          {Object.entries(admin.available_payloads || {}).map(([key, value]) => (
+            <span key={key} className="pill">
+              {key}: {value}
             </span>
           ))}
         </div>
+      </div>
+      <div className="panel">
+        <h3>Published assessment ids</h3>
+        <ul className="simple-list">
+          {(admin.assessment_ids || []).map((assessmentId) => (
+            <li key={assessmentId}>{assessmentId}</li>
+          ))}
+        </ul>
       </div>
     </section>
   )
@@ -740,26 +615,29 @@ function AdminPage() {
 
 /**
  * SkillsAI frontend root component.
- * // Line comment: this shell provides the two-surface enterprise experience on one design system.
+ * // Line comment: this shell now aggregates all substantive page data from backend API calls.
  */
 function App() {
-  // Line comment: track the current product surface and role context.
+  // Line comment: track current surface, persona, and lightweight UI-only controls.
   const [activeSurface, setActiveSurface] = useState('control')
   const [activePersona, setActivePersona] = useState('admin')
   const [activeNavItem, setActiveNavItem] = useState('Home')
-  const [tenant, setTenant] = useState('Acme Global')
   const [searchText, setSearchText] = useState('')
-  const [viewAs, setViewAs] = useState('Current role')
+  const [tenant, setTenant] = useState('default-tenant')
+  const [workspace, setWorkspace] = useState(createEmptyWorkspaceData)
+  const [loading, setLoading] = useState(true)
+  const [errorMessage, setErrorMessage] = useState('')
 
   const personaOptions = useMemo(() => PERSONA_BY_SURFACE[activeSurface] || [], [activeSurface])
   const navigationItems = useMemo(() => ROLE_NAVIGATION[activePersona] || ROLE_NAVIGATION.admin, [activePersona])
+  const session = useMemo(() => PERSONA_SESSION[activePersona] || PERSONA_SESSION.employee, [activePersona])
 
   /**
-   * Update active surface and reset to valid role/navigation defaults.
-   * // Line comment: each surface has dedicated personas and role-aware navigation.
+   * Update active surface and reset persona/navigation to valid defaults.
+   * // Line comment: each surface only supports the personas defined for that surface.
    */
   function handleSurfaceChange(surfaceId) {
-    // Line comment: first persona in each surface becomes the default when switching surfaces.
+    // Line comment: switch persona and navigation back to the first valid route for the selected surface.
     const defaultPersona = PERSONA_BY_SURFACE[surfaceId]?.[0]?.id || 'admin'
     setActiveSurface(surfaceId)
     setActivePersona(defaultPersona)
@@ -767,42 +645,143 @@ function App() {
   }
 
   /**
-   * Update the selected persona in the current surface.
-   * // Line comment: changing persona resets the page to Home for clarity.
+   * Update active persona and reset navigation to the home page.
+   * // Line comment: persona changes should trigger a fresh backend workspace load.
    */
   function handlePersonaChange(personaId) {
-    // Line comment: reset keeps navigation state consistent across role transitions.
+    // Line comment: reset the active page so the newly loaded workspace opens predictably.
     setActivePersona(personaId)
     setActiveNavItem('Home')
   }
 
   /**
-   * Render the main workspace page based on current navigation state.
-   * // Line comment: every route shares design primitives to preserve coherence.
+   * Load the full backend workspace for the current persona session.
+   * // Line comment: all substantive frontend data now flows through this API orchestration step.
    */
-  function renderActivePage() {
-    // Line comment: switch statement keeps route-to-page mapping explicit and readable.
-    switch (activeNavItem) {
-      case 'Home':
-        return <LandingPage persona={activePersona} />
-      case 'Skills':
-        return <SkillProfilePage />
-      case 'Assessments':
-        return <AssessmentsPage />
-      case 'Coaching':
-        return <CoachingPage persona={activePersona} />
-      case 'Mobility':
-        return <MobilityPage />
-      case 'Analytics':
-        return <AnalyticsPage />
-      case 'Governance':
-        return <GovernancePage />
-      case 'Admin':
-        return <AdminPage />
-      default:
-        return <LandingPage persona={activePersona} />
+  async function loadWorkspaceData() {
+    // Line comment: clear stale errors and show loading state before starting backend fetches.
+    setLoading(true)
+    setErrorMessage('')
+    try {
+      const [
+        health,
+        identity,
+        skills,
+        coaching,
+        assessmentWorkspace,
+        kpiAnalytics,
+        trendAnalytics,
+        planningAnalytics,
+        governance,
+        admin,
+      ] = await Promise.all([
+        fetchBackendHealth(),
+        fetchIdentityProfile({
+          employeeId: session.employeeId,
+          actorId: session.actorId,
+          token: session.token,
+        }),
+        fetchSkillStates({
+          employeeId: session.employeeId,
+          actorId: session.actorId,
+          token: session.token,
+        }),
+        fetchCoachingRecommendations({
+          employeeId: session.employeeId,
+          actorId: session.actorId,
+          token: session.token,
+        }),
+        fetchAssessmentWorkspace({
+          assessmentId: 'asm-1',
+          attemptId: 'attempt-1',
+          actorId: session.actorId,
+          token: session.token,
+        }),
+        fetchAnalyticsSnapshot({
+          metric: 'skill_coverage',
+          cohort: 'all',
+          actorId: session.actorId,
+          token: session.token,
+        }),
+        fetchAnalyticsSnapshot({
+          metric: 'trend.skill_coverage',
+          cohort: 'all',
+          actorId: session.actorId,
+          token: session.token,
+        }),
+        fetchAnalyticsSnapshot({
+          metric: 'plan.hiring_capacity',
+          cohort: 'engineering',
+          actorId: session.actorId,
+          token: session.token,
+        }),
+        fetchGovernanceSummary({
+          actorId: session.actorId,
+          token: session.token,
+        }),
+        fetchAdminSummary({
+          actorId: session.actorId,
+          token: session.token,
+        }),
+      ])
+      // Line comment: store the aggregated backend workspace in one local state object.
+      setWorkspace({
+        health,
+        identity,
+        skills,
+        coaching,
+        assessment: assessmentWorkspace.assessment,
+        assessmentAttempt: assessmentWorkspace.assessmentAttempt,
+        analytics: {
+          kpi: kpiAnalytics,
+          trend: trendAnalytics,
+          planning: planningAnalytics,
+        },
+        governance,
+        admin,
+      })
+      setTenant(identity.tenant_id || 'default-tenant')
+    } catch (error) {
+      // Line comment: surface the backend error so the user can fix configuration quickly.
+      setWorkspace(createEmptyWorkspaceData())
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to load backend workspace.')
+    } finally {
+      // Line comment: stop showing the loading state after all requests complete.
+      setLoading(false)
     }
   }
+
+  /**
+   * Render the active page for the selected navigation item.
+   * // Line comment: every page now consumes the same aggregated backend workspace object.
+   */
+  function renderActivePage() {
+    // Line comment: route navigation items to the corresponding backend-driven page components.
+    switch (activeNavItem) {
+      case 'Home':
+        return <LandingPage personaLabel={session.viewAs} workspace={workspace} />
+      case 'Skills':
+        return <SkillsPage workspace={workspace} searchText={searchText} />
+      case 'Assessments':
+        return <AssessmentsPage workspace={workspace} />
+      case 'Coaching':
+        return <CoachingPage workspace={workspace} personaLabel={session.viewAs} />
+      case 'Mobility':
+        return <MobilityPage workspace={workspace} />
+      case 'Analytics':
+        return <AnalyticsPage workspace={workspace} />
+      case 'Governance':
+        return <GovernancePage workspace={workspace} />
+      case 'Admin':
+        return <AdminPage workspace={workspace} />
+      default:
+        return <LandingPage personaLabel={session.viewAs} workspace={workspace} />
+    }
+  }
+
+  useEffect(() => {
+    void loadWorkspaceData()
+  }, [session])
 
   return (
     <main className="skills-shell">
@@ -811,10 +790,12 @@ function App() {
           <p className="eyebrow">SkillsAI</p>
           <h1>Trusted workforce operating system</h1>
           <p className="muted-text">
-            Analytical for admins, actionable for managers, motivating for employees, and explainable everywhere.
+            Frontend pages are now backed by FastAPI routes seeded from the shared `seed-data` folder.
           </p>
         </div>
-        <div className="governance-tag">Governance status: Healthy</div>
+        <div className="governance-tag">
+          Governance status: {workspace.health?.status || (loading ? 'Loading' : 'Unavailable')}
+        </div>
       </header>
 
       <section className="panel shell-controls">
@@ -825,38 +806,27 @@ function App() {
             onChange={(event) => {
               setSearchText(event.target.value)
             }}
-            placeholder="Search people, skills, roles, assessments, or audit events"
+            placeholder="Filter skills and backend-backed content"
           />
         </label>
         <label>
-          Tenant / BU switcher
-          <select
-            value={tenant}
-            onChange={(event) => {
-              setTenant(event.target.value)
-            }}
-          >
-            <option>Acme Global</option>
-            <option>Acme Europe</option>
-            <option>Acme North America</option>
+          Active tenant
+          <select value={tenant} onChange={(event) => setTenant(event.target.value)}>
+            <option value={tenant}>{tenant}</option>
           </select>
         </label>
         <label>
           View as
-          <select
-            value={viewAs}
-            onChange={(event) => {
-              setViewAs(event.target.value)
-            }}
-          >
-            <option>Current role</option>
-            <option>Manager view</option>
-            <option>Employee view</option>
-            <option>Analyst view</option>
+          <select value={activePersona} onChange={(event) => handlePersonaChange(event.target.value)}>
+            {personaOptions.map((persona) => (
+              <option key={persona.id} value={persona.id}>
+                {persona.label}
+              </option>
+            ))}
           </select>
         </label>
         <div className="notification-box" role="status" aria-live="polite">
-          Notifications: 7
+          {loading ? 'Loading backend data...' : errorMessage ? 'Backend error detected' : 'Backend connected'}
         </div>
       </section>
 
@@ -880,7 +850,7 @@ function App() {
       </section>
 
       <section className="panel">
-        <h2>Shared entity model in UI</h2>
+        <h2>Backend workspace context</h2>
         <div className="chip-row">
           {ENTITY_MODEL.map((item) => (
             <span key={item} className="pill">
@@ -888,6 +858,13 @@ function App() {
             </span>
           ))}
         </div>
+        <div className="profile-header-grid" style={{ marginTop: '12px' }}>
+          <p>Actor: {session.actorId}</p>
+          <p>Subject employee: {session.employeeId}</p>
+          <p>Seed source: {workspace.admin?.seed_data_dir || 'n/a'}</p>
+          <p>Health service: {workspace.health?.service || 'n/a'}</p>
+        </div>
+        {errorMessage ? <p className="muted-text">{errorMessage}</p> : null}
       </section>
 
       <div className="workspace-layout">
@@ -895,12 +872,7 @@ function App() {
           <h3>Role-aware navigation</h3>
           <label>
             Active persona
-            <select
-              value={activePersona}
-              onChange={(event) => {
-                handlePersonaChange(event.target.value)
-              }}
-            >
+            <select value={activePersona} onChange={(event) => handlePersonaChange(event.target.value)}>
               {personaOptions.map((persona) => (
                 <option key={persona.id} value={persona.id}>
                   {persona.label}

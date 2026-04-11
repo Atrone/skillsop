@@ -9,7 +9,7 @@ from skillsai.models import RequestContext
 from skillsai.stores import PlatformStores
 
 
-@dataclass(slots=True)
+@dataclass
 class IdentityMapperAPI:
     """Provides canonical identity reads, writes, and context resolution."""
 

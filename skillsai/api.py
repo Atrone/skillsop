@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from typing import Any
+from typing import Any, Dict, List
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 
 from skillsai.models import PlatformRequest
 from skillsai.platform import SkillsAIPlatform
+from skillsai.seed_loader import load_seed_data
 
 
 class PlatformRequestModel(BaseModel):
@@ -20,14 +21,14 @@ class PlatformRequestModel(BaseModel):
     path: str = Field(min_length=1)
     actor_id: str = Field(min_length=1)
     token: str = Field(min_length=1)
-    payload: dict[str, Any] = Field(default_factory=dict)
+    payload: Dict[str, Any] = Field(default_factory=dict)
 
 
 class PlatformResponseModel(BaseModel):
     """HTTP response model returned from gateway execution."""
 
     status_code: int
-    body: dict[str, Any]
+    body: Dict[str, Any]
     audit_id: str
 
 
@@ -40,7 +41,7 @@ class HealthResponseModel(BaseModel):
 
 # Block comment:
 # This helper parses comma-separated CORS origins from environment settings.
-def read_cors_origins() -> list[str]:
+def read_cors_origins() -> List[str]:
     """Read allowed CORS origins for browser-based frontend clients."""
     # Line comment: use local frontend defaults when explicit origins are not configured.
     raw_origins = os.getenv(
@@ -52,9 +53,9 @@ def read_cors_origins() -> list[str]:
 
 
 # Block comment:
-# This helper seeds deterministic data so the frontend has usable defaults.
+# This helper seeds deterministic fallback data when seed-data is unavailable.
 def seed_demo_data(platform: SkillsAIPlatform) -> None:
-    """Seed identity and assessment data expected by the React workbench."""
+    """Seed identity and assessment data when the seed-data folder is unavailable."""
     # Line comment: ensure default employee identity exists for query-path demos.
     if "identity:emp-1" not in platform.stores.cache:
         platform.identity_mapper.upsert_identity(
@@ -81,8 +82,11 @@ def create_app() -> FastAPI:
     app = FastAPI(title="SkillsAI API", version="0.1.0")
     # Line comment: compose the architecture platform and keep it in app state.
     app.state.platform = SkillsAIPlatform()
-    # Line comment: pre-seed demo records for frontend query and command defaults.
-    seed_demo_data(app.state.platform)
+    # Line comment: hydrate stores from the shared seed-data folder when it is present.
+    load_seed_data(app.state.platform)
+    # Line comment: preserve a minimal fallback dataset when the seed-data folder is unavailable.
+    if not bool(app.state.platform.stores.meta.get("seed_data_loaded", False)):
+        seed_demo_data(app.state.platform)
     # Line comment: enable browser calls from the React dev server origin.
     app.add_middleware(
         CORSMiddleware,

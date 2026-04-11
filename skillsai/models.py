@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 
-@dataclass(slots=True)
+@dataclass
 class PlatformRequest:
     """Represents one inbound request at the federation gateway."""
 
@@ -17,7 +17,7 @@ class PlatformRequest:
     payload: dict[str, Any] = field(default_factory=dict)
 
 
-@dataclass(slots=True)
+@dataclass
 class RequestContext:
     """Represents resolved session context for one tenant-scoped request."""
 
@@ -28,7 +28,7 @@ class RequestContext:
     feature_flags: dict[str, bool]
 
 
-@dataclass(slots=True)
+@dataclass
 class PlatformResponse:
     """Represents normalized response envelope returned by the gateway."""
 
@@ -37,7 +37,7 @@ class PlatformResponse:
     audit_id: str
 
 
-@dataclass(slots=True)
+@dataclass
 class EvidenceSignal:
     """Represents one normalized signal used by inference."""
 
@@ -49,7 +49,7 @@ class EvidenceSignal:
     metadata: dict[str, Any] = field(default_factory=dict)
 
 
-@dataclass(slots=True)
+@dataclass
 class SkillState:
     """Represents inferred current state for an employee-skill pair."""
 
@@ -62,7 +62,7 @@ class SkillState:
     model_version: str
 
 
-@dataclass(slots=True)
+@dataclass
 class AssessmentSubmission:
     """Represents an assessment attempt submission payload."""
 
@@ -72,7 +72,7 @@ class AssessmentSubmission:
     responses: dict[str, Any]
 
 
-@dataclass(slots=True)
+@dataclass
 class KPIQuery:
     """Represents an analytics query from manager or analyst."""
 

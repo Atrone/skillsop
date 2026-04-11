@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 
-@dataclass(slots=True)
+@dataclass
 class PlatformStores:
     """In-memory backing stores for the Option 17 architecture."""
 

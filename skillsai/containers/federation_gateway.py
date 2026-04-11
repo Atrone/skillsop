@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+import time
 from dataclasses import dataclass, field
 from typing import Any
 from uuid import uuid4
@@ -10,7 +12,7 @@ from skillsai.models import PlatformRequest, PlatformResponse, RequestContext
 from skillsai.stores import PlatformStores
 
 
-@dataclass(slots=True)
+@dataclass
 class WebAPIEntry:
     """Receives inbound user/API requests."""
 
@@ -22,27 +24,69 @@ class WebAPIEntry:
         return request
 
 
-@dataclass(slots=True)
+@dataclass
 class RateLimiter:
     """Applies simple per-actor rate limiting."""
 
     stores: PlatformStores
-    max_requests: int = 100
+    max_requests: int = 1000
 
     # Block comment:
-    # This implementation tracks per-actor counters in cache.
+    # This helper reads the effective request budget from environment or defaults.
+    def _resolve_request_budget(self) -> int:
+        """Return the configured per-window request budget for one actor."""
+        # Line comment: allow operators to override the default budget for local development.
+        raw_limit = os.getenv("SKILLSAI_RATE_LIMIT_MAX_REQUESTS", "").strip()
+        if raw_limit:
+            return int(raw_limit)
+        # Line comment: use a more forgiving default so the frontend can load multiple panels safely.
+        return int(self.max_requests)
+
+    # Block comment:
+    # This helper reads the effective rate-limit window size from environment or defaults.
+    def _resolve_window_seconds(self) -> int:
+        """Return the configured rolling window length in seconds."""
+        # Line comment: allow operators to tune how often actor counters reset.
+        raw_window = os.getenv("SKILLSAI_RATE_LIMIT_WINDOW_SECONDS", "").strip()
+        if raw_window:
+            return int(raw_window)
+        # Line comment: reset counters every minute for predictable local behavior.
+        return 60
+
+    # Block comment:
+    # This implementation tracks per-actor counters in cache using a resettable time window.
     def throttle(self, actor_id: str) -> None:
         """Raise if actor has exceeded a simplistic fixed request budget."""
-        # Line comment: resolve current actor request count.
+        # Line comment: resolve current actor request budget and disable limiting when requested.
+        request_budget = self._resolve_request_budget()
+        if request_budget <= 0:
+            return
+        # Line comment: resolve current actor counter entry from the shared cache store.
         key = f"rate:{actor_id}"
-        current = int(self.stores.cache.get(key, 0))
-        if current >= self.max_requests:
+        current_epoch = int(time.time())
+        window_seconds = self._resolve_window_seconds()
+        cached_entry = self.stores.cache.get(key, {})
+        if isinstance(cached_entry, dict):
+            current_count = int(cached_entry.get("count", 0))
+            window_started_at = int(cached_entry.get("window_started_at", current_epoch))
+        else:
+            # Line comment: preserve compatibility with older integer-only counter entries.
+            current_count = int(cached_entry or 0)
+            window_started_at = current_epoch
+        # Line comment: reset the counter when the configured window has elapsed.
+        if current_epoch - window_started_at >= window_seconds:
+            current_count = 0
+            window_started_at = current_epoch
+        if current_count >= request_budget:
             raise PermissionError("Rate limit exceeded.")
-        # Line comment: increment count after successful check.
-        self.stores.cache[key] = current + 1
+        # Line comment: increment and persist the current windowed actor counter.
+        self.stores.cache[key] = {
+            "count": current_count + 1,
+            "window_started_at": window_started_at,
+        }
 
 
-@dataclass(slots=True)
+@dataclass
 class AuthAdapter:
     """Validates tokens/claims through an identity provider boundary."""
 
@@ -58,7 +102,7 @@ class AuthAdapter:
         return {"sub": parts[0], "tenant_hint": parts[1] if len(parts) > 1 else "default"}
 
 
-@dataclass(slots=True)
+@dataclass
 class TenantResolver:
     """Resolves tenant context for requests."""
 
@@ -71,7 +115,7 @@ class TenantResolver:
         return str(tenant)
 
 
-@dataclass(slots=True)
+@dataclass
 class SessionContextBuilder:
     """Builds user session context for downstream components."""
 
@@ -96,7 +140,7 @@ class SessionContextBuilder:
         )
 
 
-@dataclass(slots=True)
+@dataclass
 class FeatureFlagEvaluator:
     """Evaluates feature flags given request context."""
 
@@ -113,14 +157,46 @@ class FeatureFlagEvaluator:
         return {**base_flags, **tenant_flags}
 
 
-@dataclass(slots=True)
+@dataclass
 class QueryComposer:
     """Handles read path composition to downstream APIs."""
+
+    # Block comment:
+    # This helper summarizes governance and audit state for frontend governance views.
+    def _build_governance_summary(self, stores: PlatformStores) -> dict[str, object]:
+        """Build a governance-oriented summary from shared platform stores."""
+        # Line comment: expose recent audit items in reverse chronological order.
+        latest_audit_events = list(reversed(stores.audit[-5:]))
+        return {
+            "audit_count": len(stores.audit),
+            "time_series_count": len(stores.time_series),
+            "active_taxonomy_version": stores.cache.get("active_taxonomy_version", "unversioned"),
+            "seed_data_dir": stores.meta.get("seed_data_dir", ""),
+            "latest_audit_events": latest_audit_events,
+        }
+
+    # Block comment:
+    # This helper summarizes seed-data and loaded backend modules for admin views.
+    def _build_admin_summary(self, stores: PlatformStores) -> dict[str, object]:
+        """Build an admin-oriented summary from seeded platform metadata."""
+        # Line comment: collect stable counts and metadata from the shared stores.
+        identity_count = sum(1 for key in stores.cache if key.startswith("identity:"))
+        request_samples = stores.meta.get("seed_platform_request_samples", [])
+        return {
+            "seed_data_dir": stores.meta.get("seed_data_dir", ""),
+            "seed_modules": list(stores.meta.get("seed_modules", [])),
+            "available_payloads": dict(stores.meta.get("seed_platform_payloads", {})),
+            "request_samples": list(request_samples),
+            "identity_count": identity_count,
+            "assessment_count": len(stores.item_bank),
+            "assessment_ids": sorted(stores.item_bank.keys()),
+        }
 
     # Block comment:
     # Read routes query multiple containers and aggregate payload.
     def execute(
         self,
+        stores: PlatformStores,
         path: str,
         payload: dict[str, object],
         identity_mapper: object,
@@ -140,17 +216,30 @@ class QueryComposer:
         if path.startswith("/coaching"):
             plan = activation_services.get_coaching_recommendations(str(payload["employee_id"]))
             return {"coaching": plan}
+        if path.startswith("/mobility"):
+            plan = activation_services.get_coaching_recommendations(str(payload["employee_id"]))
+            return {"mobility": plan}
         if path.startswith("/assessments"):
-            attempt = assessments.read_attempt(str(payload["attempt_id"]))
-            return {"assessment_attempt": attempt}
+            result: dict[str, object] = {}
+            # Line comment: return package metadata when the caller provides an assessment id.
+            if "assessment_id" in payload:
+                result["assessment"] = assessments.read_package(str(payload["assessment_id"]))
+            # Line comment: return attempt state when the caller provides an attempt id.
+            if "attempt_id" in payload:
+                result["assessment_attempt"] = assessments.read_attempt(str(payload["attempt_id"]))
+            return result if result else {"message": "No assessment identifier provided."}
         if path.startswith("/analytics"):
             result = analytics.analytics_query(payload)
             return {"analytics": result}
+        if path.startswith("/governance"):
+            return {"governance": self._build_governance_summary(stores)}
+        if path.startswith("/admin"):
+            return {"admin": self._build_admin_summary(stores)}
         # Line comment: return empty dataset when route is unknown.
         return {"message": "No query route matched."}
 
 
-@dataclass(slots=True)
+@dataclass
 class CommandOrchestrator:
     """Handles write/action path orchestration to downstream APIs."""
 
@@ -197,7 +286,7 @@ class CommandOrchestrator:
         return {"message": "No command route matched."}
 
 
-@dataclass(slots=True)
+@dataclass
 class RequestRouter:
     """Routes requests between query and command paths."""
 
@@ -209,6 +298,7 @@ class RequestRouter:
     def route(
         self,
         request: PlatformRequest,
+        stores: PlatformStores,
         identity_mapper: object,
         core_intelligence: object,
         activation_services: object,
@@ -229,6 +319,7 @@ class RequestRouter:
             )
         # Line comment: execute query route for read requests.
         return self.query.execute(
+            stores,
             request.path,
             request.payload,
             identity_mapper,
@@ -239,7 +330,7 @@ class RequestRouter:
         )
 
 
-@dataclass(slots=True)
+@dataclass
 class ResponseComposer:
     """Composes standardized response envelope."""
 
@@ -251,7 +342,7 @@ class ResponseComposer:
         return {"status": "ok" if status_code < 400 else "error", "data": body}
 
 
-@dataclass(slots=True)
+@dataclass
 class AuditHook:
     """Writes audit records for response envelopes."""
 
@@ -276,7 +367,7 @@ class AuditHook:
         return audit_id
 
 
-@dataclass(slots=True)
+@dataclass
 class FederationGateway:
     """Composed federation gateway implementing the Level 3A flow."""
 
@@ -331,6 +422,7 @@ class FederationGateway:
         # Line comment: route to query or command handlers.
         result = self.router.route(
             inbound,
+            self.stores,
             self.identity_mapper,
             self.core_intelligence,
             self.activation_services,
@@ -343,7 +435,7 @@ class FederationGateway:
         return PlatformResponse(status_code=200, body=body, audit_id=audit_id)
 
 
-@dataclass(slots=True)
+@dataclass
 class FederationGatewayContainer:
     """Container wrapper exposing request handling for platform composition."""
 

@@ -10,7 +10,7 @@ from skillsai.models import RequestContext
 from skillsai.stores import PlatformStores
 
 
-@dataclass(slots=True)
+@dataclass
 class ActivationServicesAPI:
     """Serves coaching and mobility reads/actions for the gateway."""
 
@@ -18,24 +18,54 @@ class ActivationServicesAPI:
     event_bus: PlatformEventBus
 
     # Block comment:
+    # This helper derives recommendations from either nested or flat graph store shapes.
+    def _build_graph_recommendations(self, employee_id: str) -> list[dict[str, Any]]:
+        """Build coaching recommendations from graph-backed skill states."""
+        # Line comment: accumulate one recommendation per skill id to avoid duplicates across store layouts.
+        recommendations_by_skill: dict[str, dict[str, Any]] = {}
+        nested_state = self.stores.graph.get(employee_id, {})
+        nested_skills = nested_state.get("skills", {}) if isinstance(nested_state, dict) else {}
+        for skill_id, state in nested_skills.items():
+            # Line comment: compute one recommendation from nested employee->skills records.
+            gap = float(state.get("gap", 0.0))
+            confidence = float(state.get("confidence", 0.0))
+            if gap > 0:
+                recommendations_by_skill[str(skill_id)] = {
+                    "type": "coaching",
+                    "skill_id": str(skill_id),
+                    "priority": round(gap * max(confidence, 0.0), 4),
+                }
+        for key, state in self.stores.graph.items():
+            # Line comment: also support the flat employee_id:skill_id graph layout used by core intelligence.
+            if not key.startswith(f"{employee_id}:") or not isinstance(state, dict):
+                continue
+            skill_id = str(state.get("skill_id", key.split(":", 1)[1]))
+            gap = float(state.get("gap", 0.0))
+            confidence = float(state.get("confidence", 0.0))
+            if gap > 0:
+                recommendations_by_skill[skill_id] = {
+                    "type": "coaching",
+                    "skill_id": skill_id,
+                    "priority": round(gap * max(confidence, 0.0), 4),
+                }
+        # Line comment: return a stable priority-sorted recommendation list for UI consumers.
+        recommendations = list(recommendations_by_skill.values())
+        recommendations.sort(key=lambda item: item["priority"], reverse=True)
+        return recommendations
+
+    # Block comment:
     # This read path mirrors query composition flow for coaching and mobility.
     def read(self, context: RequestContext, request: dict[str, Any]) -> dict[str, Any]:
         """Return coaching and mobility recommendations for one employee."""
         # Line comment: locate the subject employee requested by the caller.
         employee_id = request.get("employee_id", context.actor_id)
-        # Line comment: read inferred skill states from the skills graph store.
-        states = self.stores.graph.get(employee_id, {}).get("skills", {})
-        recommendations: list[dict[str, Any]] = []
-        # Line comment: score each skill for next-best action.
-        for skill_id, state in states.items():
-            if state["gap"] > 0:
-                recommendations.append(
-                    {
-                        "type": "coaching",
-                        "skill_id": skill_id,
-                        "priority": round(state["gap"] * state["confidence"], 4),
-                    }
-                )
+        # Line comment: prefer explicit seed-data recommendations when they are available.
+        seeded_recommendations = self.stores.cache.get(f"activation:{employee_id}", {})
+        if isinstance(seeded_recommendations, dict) and isinstance(seeded_recommendations.get("recommendations"), list):
+            recommendations = list(seeded_recommendations["recommendations"])
+        else:
+            # Line comment: derive fallback recommendations from graph-backed skill states.
+            recommendations = self._build_graph_recommendations(str(employee_id))
         # Line comment: persist recommendation decision audit.
         self.stores.append(
             "audit",

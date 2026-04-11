@@ -394,7 +394,7 @@ class SkillsAIAssessments:
         return outputs
 
 
-@dataclass(slots=True)
+@dataclass
 class SkillsAIAssessmentsContainer:
     """Container façade exposing gateway-friendly assessment APIs."""
 
@@ -447,6 +447,13 @@ class SkillsAIAssessmentsContainer:
         """Return persisted attempt payload by identifier."""
         # Line comment: read one attempt record from attempts store.
         return dict(self.stores.attempts.get(attempt_id, {}))
+
+    # Block comment:
+    # This method supports read/query path for published assessment package metadata.
+    def read_package(self, assessment_id: str) -> dict[str, Any]:
+        """Return one published assessment package by identifier."""
+        # Line comment: read one package record from the assessment item bank.
+        return dict(self.stores.item_bank.get(assessment_id, {}))
 
     # Block comment:
     # This method handles submission command and downstream evidence publication.
