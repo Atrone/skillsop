@@ -1,84 +1,43 @@
 # SkillsAI React Frontend
 
-React + Vite frontend for interacting with the SkillsAI federation gateway.
+React + Vite frontend that prototypes the SkillsAI product vision as a two-surface enterprise app on a shared design system.
 
-## Features
+## Implemented frontend scope
 
-- Gateway request workbench for query and command routes
-- Route-specific forms for all currently implemented backend paths
-- Structured display of request payload and backend response
-- Runtime backend URL override for local or remote API targets
+The UI now models the core product structure:
 
-## Supported backend routes
+- **Skills Control Center** for HR Admins and Analysts
+- **Growth Workspace** for Managers and Employees
+- **Role-aware primary navigation** (Home, Skills, Assessments, Coaching, Mobility, Analytics, Governance, Admin)
+- **Shared entity model** chips (person, skill, role/job family, assessment, coaching plan, opportunity, audit event)
+- **Trust-forward recommendation cards** with rationale, evidence chips, confidence, model/version, lineage, and audit actions
 
-### Query routes
+## Core screens included
 
-- `GET /identity`
-- `GET /skills`
-- `GET /coaching`
-- `GET /assessments`
-- `GET /analytics`
+- Persona landing pages for Admin, Analyst, Manager, and Employee
+- Signature Skill Profile screen with:
+  - header context
+  - domain-grouped skill map
+  - evidence timeline
+  - explanation panel
+  - actions rail
+- Job family setup wizard table (9-step pilot-first flow)
+- Assessment experience sections:
+  - authoring studio (three-pane concept)
+  - delivery requirements
+  - results summary
+- Analytics and longitudinal workspace with first-class controls and drill-down guidance
+- Governance center with consent/policy KPIs and audit activity
+- Mobility readiness and opportunity rationale content
 
-### Command routes
+## Design and UX intent
 
-- `POST /command/identity/link`
-- `POST /command/core/infer`
-- `POST /command/activation/coaching`
-- `POST /command/assessments/submit`
-- `POST /command/analytics/materialize`
-
-## Backend contract assumed by frontend
-
-The UI sends all requests to:
-
-- `POST {VITE_BACKEND_BASE_URL}/api/v1/platform/request`
-
-With payload shape:
-
-```json
-{
-  "method": "GET",
-  "path": "/analytics",
-  "actor_id": "emp-1",
-  "token": "valid-token",
-  "payload": {
-    "metric": "skill_coverage",
-    "cohort": "all",
-    "start": "2026-01-01",
-    "end": "2026-12-31"
-  }
-}
-```
+- Enterprise-grade and data-rich visual tone
+- Denser control-center patterns with lighter growth-workspace messaging
+- Explainability and governance visibility surfaced across screens
+- Reusable domain components highlighted for future extraction into a design system
 
 ## Setup
-
-```bash
-cd frontend
-npm install
-```
-
-Create `.env.local`:
-
-```bash
-VITE_BACKEND_BASE_URL=http://localhost:8000
-```
-
-Run the app:
-
-```bash
-npm run dev
-```
-
-### End-to-end local run
-
-Start backend (from repository root):
-
-```bash
-python3 -m pip install -r requirements.txt
-python3 -m skillsai.main
-```
-
-Then start frontend in a separate terminal:
 
 ```bash
 cd frontend
