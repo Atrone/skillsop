@@ -1,7 +1,7 @@
 """Tests for the Python implementation of the architecture docs."""
 
 from skillsai.models import PlatformRequest
-from skillsai.platform import SkillsAIPlatform
+from skillsai.skills_platform import SkillsAIPlatform
 
 
 # Block comment:

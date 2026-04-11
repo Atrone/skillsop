@@ -68,4 +68,3 @@ class SkillsAIPlatform:
         self.event_bus.subscribe("SkillStateUpdated", self.analytics.handle_bus_event)
         self.event_bus.subscribe("AssessmentEvidencePublished", self.analytics.handle_bus_event)
         self.event_bus.subscribe("MobilityRecommendationCreated", self.analytics.handle_bus_event)
-

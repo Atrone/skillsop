@@ -13,8 +13,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from models import PlatformRequest
-from platform import SkillsAIPlatform
 from seed_loader import load_seed_data
+from skills_platform import SkillsAIPlatform
 
 
 class PlatformRequestModel(BaseModel):

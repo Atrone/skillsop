@@ -77,7 +77,7 @@ from skillsai.containers.federation_gateway import (
 from skillsai.containers.identity_mapper import IdentityMapperAPI
 from skillsai.event_bus import EventBus, PlatformEventBus
 from skillsai.models import AssessmentSubmission, EvidenceSignal, KPIQuery, PlatformRequest, RequestContext, SkillState
-from skillsai.platform import SkillsAIPlatform
+from skillsai.skills_platform import SkillsAIPlatform
 from skillsai.seed_loader import (
     DEFAULT_PROFICIENCY_SCALE,
     _load_activation_seed,
