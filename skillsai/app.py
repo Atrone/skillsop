@@ -8,32 +8,13 @@ import types
 from pathlib import Path
 from typing import Any, Dict, List
 
-# Block comment:
-# This startup guard normalizes imports for both packaged and flattened production deployments.
-if __package__ in {None, ""}:
-    # Line comment: resolve the package directory and its repository root.
-    package_dir = Path(__file__).resolve().parent
-    repo_root = package_dir.parent
-    # Line comment: detect the normal source layout where this file lives inside the skillsai package directory.
-    is_package_layout = (package_dir / "__init__.py").exists()
-    if is_package_layout:
-        # Line comment: remove entries that would shadow Python stdlib modules like platform.py.
-        sys.path = [entry for entry in sys.path if Path(entry or ".").resolve() != package_dir]
-        # Line comment: prepend the repository root so absolute skillsai imports resolve reliably.
-        sys.path.insert(0, str(repo_root))
-    else:
-        # Line comment: register a synthetic skillsai package when deployment flattens package files into one directory.
-        synthetic_package = types.ModuleType("skillsai")
-        synthetic_package.__path__ = [str(package_dir)]
-        sys.modules.setdefault("skillsai", synthetic_package)
-
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-from skillsai.models import PlatformRequest
-from skillsai.platform import SkillsAIPlatform
-from skillsai.seed_loader import load_seed_data
+from models import PlatformRequest
+from platform import SkillsAIPlatform
+from seed_loader import load_seed_data
 
 
 class PlatformRequestModel(BaseModel):
