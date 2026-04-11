@@ -12,9 +12,14 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-from models import PlatformRequest
-from seed_loader import load_seed_data
-from skills_platform import SkillsAIPlatform
+try:
+    from .models import PlatformRequest
+    from .seed_loader import load_seed_data
+    from .skills_platform import SkillsAIPlatform
+except ImportError:
+    from .models import PlatformRequest
+    from .seed_loader import load_seed_data
+    from .skills_platform import SkillsAIPlatform
 
 
 class PlatformRequestModel(BaseModel):
