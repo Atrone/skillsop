@@ -2,14 +2,24 @@
 
 from __future__ import annotations
 
-from skillsai.containers.activation_services import ActivationServicesAPI
-from skillsai.containers.analytics_longitudinal import AnalyticsLongitudinalContainer
-from skillsai.containers.assessments import SkillsAIAssessmentsContainer
-from skillsai.containers.core_intelligence import CoreIntelligenceContainer
-from skillsai.containers.federation_gateway import FederationGatewayContainer
-from skillsai.containers.identity_mapper import IdentityMapperAPI
-from skillsai.event_bus import EventBus
-from skillsai.stores import PlatformStores
+try:
+    from .containers.activation_services import ActivationServicesAPI
+    from .containers.analytics_longitudinal import AnalyticsLongitudinalContainer
+    from .containers.assessments import SkillsAIAssessmentsContainer
+    from .containers.core_intelligence import CoreIntelligenceContainer
+    from .containers.federation_gateway import FederationGatewayContainer
+    from .containers.identity_mapper import IdentityMapperAPI
+    from .event_bus import EventBus
+    from .stores import PlatformStores
+except ImportError:
+    from containers.activation_services import ActivationServicesAPI
+    from containers.analytics_longitudinal import AnalyticsLongitudinalContainer
+    from containers.assessments import SkillsAIAssessmentsContainer
+    from containers.core_intelligence import CoreIntelligenceContainer
+    from containers.federation_gateway import FederationGatewayContainer
+    from containers.identity_mapper import IdentityMapperAPI
+    from event_bus import EventBus
+    from stores import PlatformStores
 
 
 class SkillsAIPlatform:

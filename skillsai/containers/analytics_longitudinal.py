@@ -5,9 +5,14 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from skillsai.event_bus import PlatformEventBus
-from skillsai.models import KPIQuery
-from skillsai.stores import PlatformStores
+try:
+    from ..event_bus import PlatformEventBus
+    from ..models import KPIQuery
+    from ..stores import PlatformStores
+except ImportError:
+    from event_bus import PlatformEventBus
+    from models import KPIQuery
+    from stores import PlatformStores
 
 
 @dataclass

@@ -7,7 +7,10 @@ import os
 from pathlib import Path
 from typing import Any
 
-from skillsai.platform import SkillsAIPlatform
+try:
+    from .platform import SkillsAIPlatform
+except ImportError:
+    from platform import SkillsAIPlatform
 
 DEFAULT_PROFICIENCY_SCALE = ["L1", "L2", "L3", "L4", "L5"]
 

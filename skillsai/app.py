@@ -3,7 +3,20 @@
 from __future__ import annotations
 
 import os
+import sys
+from pathlib import Path
 from typing import Any, Dict, List
+
+# Block comment:
+# This startup guard ensures package imports work even when the process starts inside the skillsai folder.
+if __package__ in {None, ""}:
+    # Line comment: resolve the package directory and its repository root.
+    package_dir = Path(__file__).resolve().parent
+    repo_root = package_dir.parent
+    # Line comment: remove entries that would shadow Python stdlib modules like platform.py.
+    sys.path = [entry for entry in sys.path if Path(entry or ".").resolve() != package_dir]
+    # Line comment: prepend the repository root so absolute skillsai imports resolve reliably.
+    sys.path.insert(0, str(repo_root))
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware

@@ -5,8 +5,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from skillsai.models import RequestContext
-from skillsai.stores import PlatformStores
+try:
+    from ..models import RequestContext
+    from ..stores import PlatformStores
+except ImportError:
+    from models import RequestContext
+    from stores import PlatformStores
 
 
 @dataclass

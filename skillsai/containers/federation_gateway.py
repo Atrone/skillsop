@@ -8,8 +8,12 @@ from dataclasses import dataclass, field
 from typing import Any
 from uuid import uuid4
 
-from skillsai.models import PlatformRequest, PlatformResponse, RequestContext
-from skillsai.stores import PlatformStores
+try:
+    from ..models import PlatformRequest, PlatformResponse, RequestContext
+    from ..stores import PlatformStores
+except ImportError:
+    from models import PlatformRequest, PlatformResponse, RequestContext
+    from stores import PlatformStores
 
 
 @dataclass
