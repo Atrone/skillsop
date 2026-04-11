@@ -25,7 +25,7 @@ def run() -> None:
     # Line comment: read host/port before launching uvicorn process.
     host, port = read_server_config()
     # Line comment: launch the application module-level app object.
-    uvicorn.run("skillsai.api:app", host=host, port=port, reload=False)
+    uvicorn.run("skillsai.app:app", host=host, port=port, reload=False)
 
 
 if __name__ == "__main__":
