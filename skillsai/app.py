@@ -13,9 +13,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 try:
-    from .models import PlatformRequest
-    from .seed_loader import load_seed_data
-    from .skills_platform import SkillsAIPlatform
+    from models import PlatformRequest
+    from seed_loader import load_seed_data
+    from skills_platform import SkillsAIPlatform
 except ImportError:
     from .models import PlatformRequest
     from .seed_loader import load_seed_data
