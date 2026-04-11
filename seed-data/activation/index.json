@@ -1,0 +1,36 @@
+{
+  "api": "activation-services",
+  "version": "v1",
+  "description": "Seed recommendations and action outcomes for coaching workflows.",
+  "coaching": {
+    "employee_id": "emp-1",
+    "recommendations": [
+      {
+        "type": "coaching",
+        "skill_id": "skill:python",
+        "priority": 0.34
+      },
+      {
+        "type": "coaching",
+        "skill_id": "skill:sql",
+        "priority": 0.21
+      }
+    ]
+  },
+  "actions": [
+    {
+      "action_type": "coaching",
+      "skill_id": "skill:python",
+      "outcome": "accepted",
+      "metric_key": "activation:coaching:accepted",
+      "value": 12
+    },
+    {
+      "action_type": "mobility",
+      "skill_id": "skill:project-management",
+      "outcome": "scheduled",
+      "metric_key": "activation:mobility:scheduled",
+      "value": 4
+    }
+  ]
+}

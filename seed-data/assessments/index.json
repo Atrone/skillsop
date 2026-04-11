@@ -1,0 +1,46 @@
+{
+  "assessment_packages": [
+    {
+      "assessment_id": "asm-1",
+      "version": 1,
+      "blueprint": {
+        "sections": [
+          {
+            "name": "Foundations"
+          }
+        ],
+        "duration_min": 30
+      },
+      "items": [
+        {
+          "id": "q1",
+          "skill_id": "skill:asm-1",
+          "prompt": "Can you interpret a KPI trend chart?"
+        },
+        {
+          "id": "q2",
+          "skill_id": "skill:asm-1",
+          "prompt": "Can you explain a confidence interval in plain terms?"
+        }
+      ],
+      "rubric": {
+        "type": "binary"
+      }
+    }
+  ],
+  "attempts": [
+    {
+      "attempt_id": "attempt-1",
+      "employee_id": "emp-1",
+      "assessment_id": "asm-1",
+      "status": "submitted",
+      "responses": {
+        "q1": true,
+        "q2": false
+      },
+      "scores": {
+        "final": 0.375
+      }
+    }
+  ]
+}

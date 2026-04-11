@@ -1,0 +1,74 @@
+{
+  "samples": [
+    {
+      "name": "identity-read",
+      "request": {
+        "method": "GET",
+        "path": "/identity",
+        "actor_id": "emp-1",
+        "token": "emp-1:default",
+        "payload": {
+          "employee_id": "emp-1"
+        }
+      }
+    },
+    {
+      "name": "skills-read",
+      "request": {
+        "method": "GET",
+        "path": "/skills",
+        "actor_id": "emp-1",
+        "token": "emp-1:default",
+        "payload": {
+          "employee_id": "emp-1"
+        }
+      }
+    },
+    {
+      "name": "activation-command",
+      "request": {
+        "method": "POST",
+        "path": "/command/activation/coaching",
+        "actor_id": "emp-1",
+        "token": "emp-1:default",
+        "payload": {
+          "employee_id": "emp-1",
+          "goal_skill": "skill:python"
+        }
+      }
+    },
+    {
+      "name": "assessments-command",
+      "request": {
+        "method": "POST",
+        "path": "/command/assessments/submit",
+        "actor_id": "emp-1",
+        "token": "emp-1:default",
+        "payload": {
+          "attempt_id": "attempt-1",
+          "assessment_id": "asm-1",
+          "employee_id": "emp-1",
+          "responses": {
+            "q1": true,
+            "q2": false
+          }
+        }
+      }
+    },
+    {
+      "name": "analytics-query",
+      "request": {
+        "method": "GET",
+        "path": "/analytics",
+        "actor_id": "analyst-1",
+        "token": "analyst-1:default",
+        "payload": {
+          "metric": "skill_coverage",
+          "cohort": "all",
+          "start": "2026-01-01",
+          "end": "2026-12-31"
+        }
+      }
+    }
+  ]
+}

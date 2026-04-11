@@ -1,0 +1,54 @@
+{
+  "service": "core-intelligence-api",
+  "taxonomy": {
+    "active_version": "2026.04.0",
+    "skills": [
+      {
+        "id": "skill:python",
+        "name": "Python Programming"
+      },
+      {
+        "id": "skill:data-literacy",
+        "name": "Data Literacy"
+      }
+    ],
+    "job_mappings": {
+      "data-analyst": [
+        "skill:python",
+        "skill:data-literacy"
+      ]
+    }
+  },
+  "skill_states": {
+    "emp-1": [
+      {
+        "skill_id": "skill:python",
+        "proficiency": 0.74,
+        "confidence": 0.88,
+        "gap": 0.06
+      },
+      {
+        "skill_id": "skill:data-literacy",
+        "proficiency": 0.68,
+        "confidence": 0.81,
+        "gap": 0.12
+      }
+    ]
+  },
+  "evidence_signals": [
+    {
+      "employee_id": "emp-1",
+      "skill_id": "skill:python",
+      "value": 0.8,
+      "source": "assessment",
+      "confidence_hint": 0.8
+    },
+    {
+      "employee_id": "emp-2",
+      "skill_id": "skill:data-literacy",
+      "value": 0.66,
+      "source": "manager-review",
+      "confidence_hint": 0.7
+    }
+  ]
+}

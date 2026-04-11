@@ -1,0 +1,34 @@
+{
+  "api": "identity",
+  "description": "Canonical identity and external identity link seed records.",
+  "identities": [
+    {
+      "actor_id": "emp-1",
+      "tenant_id": "default-tenant",
+      "roles": ["employee"],
+      "claims": {
+        "tenant_id": "default-tenant",
+        "roles": ["employee"]
+      }
+    },
+    {
+      "actor_id": "manager-1",
+      "tenant_id": "default-tenant",
+      "roles": ["manager"],
+      "claims": {
+        "tenant_id": "default-tenant",
+        "roles": ["manager"]
+      }
+    }
+  ],
+  "external_links": [
+    {
+      "external_id": "hris:1001",
+      "employee_id": "emp-1"
+    },
+    {
+      "external_id": "hris:2001",
+      "employee_id": "manager-1"
+    }
+  ]
+}
