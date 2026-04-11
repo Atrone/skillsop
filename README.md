@@ -38,12 +38,12 @@ docker compose up -d
 
 Hosted seed-data service endpoints:
 
-- `http://localhost:8100/` -> platform/gateway API seeds
-- `http://localhost:8101/` -> identity API seeds
-- `http://localhost:8102/` -> core intelligence API seeds
-- `http://localhost:8103/` -> activation services API seeds
-- `http://localhost:8104/` -> assessments API seeds
-- `http://localhost:8105/` -> analytics API seeds
+- `http://localhost:8100/index.json` -> platform/gateway API seeds
+- `http://localhost:8101/index.json` -> identity API seeds
+- `http://localhost:8102/index.json` -> core intelligence API seeds
+- `http://localhost:8103/index.json` -> activation services API seeds
+- `http://localhost:8104/index.json` -> assessments API seeds
+- `http://localhost:8105/index.json` -> analytics API seeds
 
 ## React frontend integration
 
