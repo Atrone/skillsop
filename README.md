@@ -28,6 +28,23 @@ The backend serves:
 - `GET /api/v1/health`
 - `POST /api/v1/platform/request`
 
+### Seed data services with Docker Compose
+
+Use the root `docker-compose.yml` to host static seed datasets for all backend API families behind the federation gateway.
+
+```bash
+docker compose up -d
+```
+
+Hosted seed-data service endpoints:
+
+- `http://localhost:8100/` -> platform/gateway API seeds
+- `http://localhost:8101/` -> identity API seeds
+- `http://localhost:8102/` -> core intelligence API seeds
+- `http://localhost:8103/` -> activation services API seeds
+- `http://localhost:8104/` -> assessments API seeds
+- `http://localhost:8105/` -> analytics API seeds
+
 ## React frontend integration
 
 The React app in `frontend/` is wired to the backend gateway endpoint at:

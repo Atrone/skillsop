@@ -1,0 +1,12 @@
+{
+  "service": "seed-platform-api",
+  "description": "Seed payload index for gateway-level backend APIs.",
+  "covers_api_routes": [
+    "GET /api/v1/health",
+    "POST /api/v1/platform/request"
+  ],
+  "available_payloads": {
+    "health": "/health-response.json",
+    "platform_requests": "/platform-request-samples.json"
+  }
+}

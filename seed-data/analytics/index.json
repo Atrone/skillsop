@@ -1,0 +1,64 @@
+{
+  "api": "analytics",
+  "seeded_on": "2026-04-11",
+  "read_models": {
+    "kpi_snapshot": {
+      "metric": "skill_coverage",
+      "cohort": "all",
+      "range": {
+        "start": "2026-01-01",
+        "end": "2026-12-31"
+      },
+      "data": {
+        "value": 0.82,
+        "graph_nodes": 2
+      }
+    },
+    "trend_snapshot": {
+      "metric": "trend.skill_coverage",
+      "cohort": "all",
+      "data": {
+        "series": [
+          0.76,
+          0.79,
+          0.82
+        ],
+        "average": 0.79
+      }
+    },
+    "planning_snapshot": {
+      "metric": "plan.hiring_capacity",
+      "cohort": "engineering",
+      "data": {
+        "conservative": 9.5,
+        "target": 10.0,
+        "aggressive": 11.0
+      }
+    }
+  },
+  "materialization_run": {
+    "trigger": "manual",
+    "run": {
+      "run_id": "run-1",
+      "tasks": [
+        "load_kpi_definitions",
+        "calculate_metrics",
+        "aggregate",
+        "snapshot",
+        "publish"
+      ],
+      "backfill": {
+        "recomputed_tasks": [
+          "load_kpi_definitions",
+          "calculate_metrics",
+          "aggregate",
+          "snapshot",
+          "publish"
+        ],
+        "mode": "incremental"
+      },
+      "state": "success"
+    },
+    "published_rows": 3
+  }
+}

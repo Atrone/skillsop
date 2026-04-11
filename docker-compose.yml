@@ -1,0 +1,48 @@
+services:
+  seed-platform-api:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports:
+      - "8100:80"
+    volumes:
+      - ./seed-data/platform:/usr/share/nginx/html:ro
+
+  seed-identity-api:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports:
+      - "8101:80"
+    volumes:
+      - ./seed-data/identity:/usr/share/nginx/html:ro
+
+  seed-core-intelligence-api:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports:
+      - "8102:80"
+    volumes:
+      - ./seed-data/core-intelligence:/usr/share/nginx/html:ro
+
+  seed-activation-api:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports:
+      - "8103:80"
+    volumes:
+      - ./seed-data/activation:/usr/share/nginx/html:ro
+
+  seed-assessments-api:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports:
+      - "8104:80"
+    volumes:
+      - ./seed-data/assessments:/usr/share/nginx/html:ro
+
+  seed-analytics-api:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports:
+      - "8105:80"
+    volumes:
+      - ./seed-data/analytics:/usr/share/nginx/html:ro
