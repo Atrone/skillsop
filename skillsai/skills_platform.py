@@ -11,6 +11,7 @@ try:
     from .containers.identity_mapper import IdentityMapperAPI
     from .event_bus import EventBus
     from .stores import PlatformStores
+    from .workflow_orchestration import WorkflowOrchestrationService
 except ImportError:
     from containers.activation_services import ActivationServicesAPI
     from containers.analytics_longitudinal import AnalyticsLongitudinalContainer
@@ -20,6 +21,7 @@ except ImportError:
     from containers.identity_mapper import IdentityMapperAPI
     from event_bus import EventBus
     from stores import PlatformStores
+    from workflow_orchestration import WorkflowOrchestrationService
 
 
 class SkillsAIPlatform:
@@ -32,6 +34,7 @@ class SkillsAIPlatform:
         # Line comment: create shared infrastructure used by all containers.
         self.stores = PlatformStores()
         self.event_bus = EventBus()
+        self.workflow_service = WorkflowOrchestrationService(self.stores)
 
         # Line comment: instantiate each container in the dependency order from Level 2.
         self.identity_mapper = IdentityMapperAPI(stores=self.stores)
@@ -45,7 +48,11 @@ class SkillsAIPlatform:
             core_api=self.core_intelligence,
             event_bus=self.event_bus,
         )
-        self.analytics = AnalyticsLongitudinalContainer(stores=self.stores, event_bus=self.event_bus)
+        self.analytics = AnalyticsLongitudinalContainer(
+            stores=self.stores,
+            event_bus=self.event_bus,
+            workflow_service=self.workflow_service,
+        )
         self.gateway = FederationGatewayContainer(
             identity_mapper_api=self.identity_mapper,
             core_intelligence_api=self.core_intelligence,

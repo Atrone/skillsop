@@ -186,6 +186,7 @@ class QueryComposer:
         # Line comment: collect stable counts and metadata from the shared stores.
         identity_count = sum(1 for key in stores.cache if key.startswith("identity:"))
         request_samples = stores.meta.get("seed_platform_request_samples", [])
+        workflow_jobs = list(reversed(list(stores.meta.get("workflow_jobs", {}).values())))
         return {
             "seed_data_dir": stores.meta.get("seed_data_dir", ""),
             "seed_modules": list(stores.meta.get("seed_modules", [])),
@@ -197,6 +198,8 @@ class QueryComposer:
             "identity_count": identity_count,
             "assessment_count": len(stores.item_bank),
             "assessment_ids": sorted(stores.item_bank.keys()),
+            "workflow_job_count": len(workflow_jobs),
+            "latest_workflow_job": workflow_jobs[0] if workflow_jobs else None,
         }
 
     # Block comment:
@@ -238,6 +241,12 @@ class QueryComposer:
         if path.startswith("/analytics"):
             result = analytics.analytics_query(payload)
             return {"analytics": result}
+        if path.startswith("/workflows"):
+            # Line comment: return one workflow job when the caller asks for a specific identifier.
+            if "job_id" in payload:
+                return {"workflow_job": analytics.get_workflow_job(str(payload["job_id"]))}
+            # Line comment: otherwise return a newest-first workflow job listing.
+            return {"workflow_jobs": analytics.list_workflow_jobs(int(payload.get("limit", 20)))}
         if path.startswith("/governance"):
             return {"governance": self._build_governance_summary(stores)}
         if path.startswith("/admin"):
@@ -287,7 +296,10 @@ class CommandOrchestrator:
             return {"assessment_result": result}
         # Line comment: route analytics materialization command.
         if path.startswith("/command/analytics/materialize"):
-            run = analytics.trigger_materialization(str(payload.get("trigger", "manual")))
+            run = analytics.trigger_materialization(
+                str(payload.get("trigger", "manual")),
+                bool(payload.get("wait_for_completion", True)),
+            )
             return {"materialization_run": run}
         # Line comment: no-op for unknown command route.
         return {"message": "No command route matched."}

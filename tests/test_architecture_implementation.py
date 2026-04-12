@@ -110,5 +110,8 @@ def test_event_bus_refresh_triggers_snapshot_materialization() -> None:
     )
     # Line comment: emit refresh trigger and assert dimensional publication exists.
     platform.event_bus.publish("SkillStateUpdated", {"reason": "assessment-published"})
+    workflow_jobs = platform.analytics.list_workflow_jobs(limit=1)
+    # Line comment: wait for the queued background workflow so assertions observe final store state.
+    platform.analytics.wait_for_workflow_job(str(workflow_jobs[0]["job_id"]), timeout_seconds=2.0)
     assert len(platform.stores.warehouse) > 0
     assert platform.stores.warehouse[-1]["metric"] == "skill_coverage"

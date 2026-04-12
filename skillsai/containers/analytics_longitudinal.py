@@ -9,10 +9,15 @@ try:
     from ..event_bus import PlatformEventBus
     from ..models import KPIQuery
     from ..stores import PlatformStores
+    from ..workflow_orchestration import WorkflowOrchestrationService
 except ImportError:
     from event_bus import PlatformEventBus
     from models import KPIQuery
     from stores import PlatformStores
+    from workflow_orchestration import WorkflowOrchestrationService
+
+
+MATERIALIZATION_WORKFLOW_NAME = "analytics.materialization"
 
 
 @dataclass
@@ -247,25 +252,61 @@ class AnalyticsLongitudinalContainer:
 
     stores: PlatformStores
     event_bus: PlatformEventBus
+    workflow_service: WorkflowOrchestrationService | None = None
     analytics_service: AnalyticsService = field(init=False)
     scheduler: SnapshotScheduler = field(init=False)
     materializer: KPIMaterializer = field(init=False)
 
+    # Block comment:
+    # This initializer wires analytics components to the shared workflow orchestration service.
     def __post_init__(self) -> None:
         """Initialize all Level 3D component façades."""
         # Line comment: instantiate internal analytics service components.
         self.analytics_service = AnalyticsService(self.stores)
         self.scheduler = SnapshotScheduler(self.stores)
         self.materializer = KPIMaterializer(self.stores)
+        # Line comment: create a local workflow service only when platform composition did not supply one.
+        if self.workflow_service is None:
+            self.workflow_service = WorkflowOrchestrationService(self.stores)
+        # Line comment: register the analytics materialization workflow once per shared service instance.
+        if not self.workflow_service.has_workflow(MATERIALIZATION_WORKFLOW_NAME):
+            self.workflow_service.register_workflow(
+                MATERIALIZATION_WORKFLOW_NAME,
+                self._execute_materialization_workflow,
+                container="analytics_longitudinal",
+                description="Refresh KPI snapshots and publish warehouse updates.",
+                store_targets=("meta", "warehouse", "mart"),
+            )
+
+    # Block comment:
+    # This workflow handler performs the full scheduler-plus-materializer store update run.
+    def _execute_materialization_workflow(
+        self,
+        payload: dict[str, Any],
+        job_context: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Execute one analytics materialization workflow job."""
+        # Line comment: run the scheduler first so the run ledger is updated before publication.
+        run = self.scheduler.trigger_refresh()
+        # Line comment: materialize KPI rows into warehouse and mart stores for downstream reads.
+        published = self.materializer.materialize()
+        return {
+            "job_id": str(job_context["job_id"]),
+            "trigger": str(payload.get("trigger", job_context.get("trigger", "manual"))),
+            "run": run,
+            "published_rows": len(published),
+            "published_metrics": [str(row.get("metric", "")) for row in published],
+        }
 
     # Block comment:
     # This method handles event-bus refresh triggers and schedules a run.
     def handle_bus_event(self, payload: dict[str, Any]) -> None:
         """Consume a bus event and run one refresh/materialization cycle."""
-        # Line comment: trigger scheduler and ignore payload for deterministic behavior.
-        _ = payload
-        self.scheduler.trigger_refresh()
-        self.materializer.materialize()
+        # Line comment: derive a readable trigger label from the incoming bus payload when present.
+        trigger = str(payload.get("reason", payload.get("event", "event_bus")))
+        workflow_response = self.trigger_materialization(trigger=trigger, wait_for_completion=False)
+        # Line comment: expose the latest background refresh job for admin/debug surfaces.
+        self.stores.meta["latest_workflow_job_id"] = workflow_response["job"]["job_id"]
 
     # Block comment:
     # This method executes read analytics queries from the federation gateway.
@@ -281,11 +322,46 @@ class AnalyticsLongitudinalContainer:
         return self.analytics_service.run_query(query)
 
     # Block comment:
-    # This method exposes explicit materialization command handling.
-    def trigger_materialization(self, trigger: str = "manual") -> dict[str, Any]:
-        """Trigger scheduler and KPI materialization from command path."""
-        # Line comment: run scheduler first and then materialize KPI snapshots.
-        run = self.scheduler.trigger_refresh()
-        published = self.materializer.materialize()
-        # Line comment: include trigger source for audit-friendly response.
-        return {"trigger": trigger, "run": run, "published_rows": len(published)}
+    # This method exposes explicit materialization command handling through the workflow service.
+    def trigger_materialization(self, trigger: str = "manual", wait_for_completion: bool = True) -> dict[str, Any]:
+        """Queue or run an analytics materialization workflow job."""
+        # Line comment: submit the workflow job using the stable analytics materialization definition.
+        job = self.workflow_service.submit_workflow(
+            MATERIALIZATION_WORKFLOW_NAME,
+            {"trigger": trigger},
+            trigger=trigger,
+        )
+        if not wait_for_completion:
+            # Line comment: return the queued job immediately for long-running background execution.
+            return {"trigger": trigger, "mode": "background", "job": job}
+        # Line comment: block until the background worker finishes so synchronous callers stay deterministic.
+        completed_job = self.workflow_service.wait_for_job(job["job_id"])
+        result = dict(completed_job.get("result") or {})
+        return {
+            "trigger": trigger,
+            "mode": "synchronous",
+            "job": completed_job,
+            "run": result.get("run", {}),
+            "published_rows": int(result.get("published_rows", 0)),
+        }
+
+    # Block comment:
+    # This method exposes workflow job listings for admin views and debugging endpoints.
+    def list_workflow_jobs(self, limit: int = 20) -> list[dict[str, Any]]:
+        """Return recent analytics workflow jobs from newest to oldest."""
+        # Line comment: delegate listing to the shared workflow orchestration service.
+        return self.workflow_service.list_jobs(limit=limit)
+
+    # Block comment:
+    # This method exposes one workflow job record for status polling and debugging.
+    def get_workflow_job(self, job_id: str) -> dict[str, Any]:
+        """Return one analytics workflow job by identifier."""
+        # Line comment: delegate lookup to the shared workflow orchestration service.
+        return self.workflow_service.get_job(job_id)
+
+    # Block comment:
+    # This helper allows tests and API callers to block on one background workflow job.
+    def wait_for_workflow_job(self, job_id: str, timeout_seconds: float | None = None) -> dict[str, Any]:
+        """Wait for one analytics workflow job to finish."""
+        # Line comment: return the final workflow job record after the worker completes.
+        return self.workflow_service.wait_for_job(job_id, timeout_seconds=timeout_seconds)

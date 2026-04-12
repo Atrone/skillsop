@@ -703,6 +703,9 @@ def test_analytics_scheduler_materializer_and_container() -> None:
     # Line comment: verify the analytics container wires service components and exposes façade methods.
     container = AnalyticsLongitudinalContainer(stores=stores, event_bus=EventBus())
     container.handle_bus_event({"reason": "refresh"})
+    latest_job = container.list_workflow_jobs(limit=1)[0]
+    # Line comment: wait for the queued background workflow before asserting downstream store effects.
+    container.wait_for_workflow_job(str(latest_job["job_id"]), timeout_seconds=2.0)
     query_result = container.analytics_query({"metric": "skill_coverage", "cohort": "all"})
     materialization_result = container.trigger_materialization("manual-test")
     assert query_result["metric"] == "skill_coverage"
