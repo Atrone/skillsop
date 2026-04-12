@@ -1006,7 +1006,10 @@ def test_gateway_query_and_command_enforce_user_scope() -> None:
     stores.cache["identity:emp-1"] = {"actor_id": "emp-1", "roles": ["employee"]}
     stores.cache["identity:emp-2"] = {"actor_id": "emp-2", "roles": ["employee"]}
     stores.cache["identity:manager-1"] = {"actor_id": "manager-1", "roles": ["manager"]}
-    identity_mapper = SimpleNamespace(read_identity=Mock(side_effect=lambda employee_id: {"actor_id": employee_id}))
+    identity_mapper = SimpleNamespace(
+        read_identity=Mock(side_effect=lambda employee_id: {"actor_id": employee_id}),
+        link_identity=Mock(return_value={"external_id": "workday:1001", "employee_id": "emp-2"}),
+    )
     core_intelligence = SimpleNamespace(
         read_skill_states=Mock(return_value={}),
         ingest_evidence=Mock(
