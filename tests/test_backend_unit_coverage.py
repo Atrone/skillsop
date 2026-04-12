@@ -866,9 +866,19 @@ def test_gateway_helper_components(monkeypatch: pytest.MonkeyPatch) -> None:
     """Ensure gateway helper components normalize requests, claims, feature flags, and rate limits."""
     # Line comment: exercise request acceptance, authentication, tenant resolution, and session context building.
     stores = PlatformStores()
+    stores.cache["id-link:hris:1001"] = "emp-1"
+    stores.cache["identity:emp-1"] = {"actor_id": "emp-1", "tenant_id": "tenant-a", "roles": ["employee"]}
     request = build_platform_request()
     assert WebAPIEntry().accept(request) is request
     assert AuthAdapter().authenticate("emp-1:tenant-a") == {"sub": "emp-1", "tenant_hint": "tenant-a"}
+    assert AuthAdapter(stores).authenticate("workday:1001:tenant-a", "unknown") == {
+        "sub": "emp-1",
+        "actor_id": "emp-1",
+        "tenant_hint": "tenant-a",
+        "roles": ["employee"],
+        "auth_provider": "workday",
+        "external_subject": "1001",
+    }
     with pytest.raises(PermissionError):
         AuthAdapter().authenticate("")
     assert TenantResolver().resolve({"tenant_hint": "tenant-a"}) == "tenant-a"
@@ -988,6 +998,143 @@ def test_gateway_query_command_router_and_response_components() -> None:
 
 
 # Block comment:
+# This test verifies query and command components enforce user scope when request context is provided.
+def test_gateway_query_and_command_enforce_user_scope() -> None:
+    """Ensure employee context defaults to self and blocks unauthorized cross-user access."""
+    # Line comment: prepare shared stores and component stubs for context-aware authorization checks.
+    stores = PlatformStores()
+    stores.cache["identity:emp-1"] = {"actor_id": "emp-1", "roles": ["employee"]}
+    stores.cache["identity:emp-2"] = {"actor_id": "emp-2", "roles": ["employee"]}
+    stores.cache["identity:manager-1"] = {"actor_id": "manager-1", "roles": ["manager"]}
+    identity_mapper = SimpleNamespace(
+        read_identity=Mock(side_effect=lambda employee_id: {"actor_id": employee_id}),
+        link_identity=Mock(return_value={"external_id": "workday:1001", "employee_id": "emp-2"}),
+    )
+    core_intelligence = SimpleNamespace(
+        read_skill_states=Mock(return_value={}),
+        ingest_evidence=Mock(
+            return_value=SkillState(
+                employee_id="emp-1",
+                skill_id="skill:python",
+                proficiency=0.7,
+                confidence=0.8,
+                gap=0.1,
+                explanation="ok",
+                model_version="v1",
+            )
+        ),
+    )
+    activation_services = SimpleNamespace(
+        get_coaching_recommendations=Mock(return_value={"recommendations": []}),
+        create_coaching_action=Mock(return_value={"status": "recorded"}),
+    )
+    assessments = SimpleNamespace(
+        read_package=Mock(return_value={"assessment_id": "asm-1"}),
+        read_attempt=Mock(return_value={"session": {"attempt_id": "attempt-1", "employee_id": "emp-2"}}),
+        submit_assessment=Mock(return_value={"score": 1.0}),
+    )
+    analytics = SimpleNamespace(
+        analytics_query=Mock(return_value={"metric": "skill_coverage"}),
+        trigger_materialization=Mock(return_value={"trigger": "manual"}),
+    )
+    query = QueryComposer()
+    command = CommandOrchestrator()
+    employee_context = RequestContext(
+        actor_id="emp-1",
+        tenant_id="default-tenant",
+        roles=["employee"],
+        claims={},
+        feature_flags={},
+    )
+    manager_context = RequestContext(
+        actor_id="manager-1",
+        tenant_id="default-tenant",
+        roles=["manager"],
+        claims={},
+        feature_flags={},
+    )
+    # Line comment: verify self-scoped reads default to context actor and reject unauthorized cross-user reads.
+    assert query.execute(
+        stores,
+        "/identity",
+        {},
+        identity_mapper,
+        core_intelligence,
+        activation_services,
+        assessments,
+        analytics,
+        context=employee_context,
+    ) == {"identity": {"actor_id": "emp-1"}}
+    with pytest.raises(PermissionError):
+        query.execute(
+            stores,
+            "/identity",
+            {"employee_id": "emp-2"},
+            identity_mapper,
+            core_intelligence,
+            activation_services,
+            assessments,
+            analytics,
+            context=employee_context,
+        )
+    assert query.execute(
+        stores,
+        "/identity",
+        {"employee_id": "emp-2"},
+        identity_mapper,
+        core_intelligence,
+        activation_services,
+        assessments,
+        analytics,
+        context=manager_context,
+    ) == {"identity": {"actor_id": "emp-2"}}
+    # Line comment: verify self-scoped commands inject employee_id from context and enforce mutation authorization.
+    command.execute(
+        "/command/core/infer",
+        {"skill_id": "skill:python", "value": 0.7},
+        identity_mapper,
+        core_intelligence,
+        activation_services,
+        assessments,
+        analytics,
+        context=employee_context,
+    )
+    assert core_intelligence.ingest_evidence.call_args.args[0]["employee_id"] == "emp-1"
+    with pytest.raises(PermissionError):
+        command.execute(
+            "/command/core/infer",
+            {"employee_id": "emp-2", "skill_id": "skill:python", "value": 0.7},
+            identity_mapper,
+            core_intelligence,
+            activation_services,
+            assessments,
+            analytics,
+            context=employee_context,
+        )
+    command.execute(
+        "/command/identity/link",
+        {"external_id": "workday:1001", "employee_id": "emp-2"},
+        identity_mapper,
+        core_intelligence,
+        activation_services,
+        assessments,
+        analytics,
+        context=manager_context,
+    )
+    with pytest.raises(PermissionError):
+        command.execute(
+            "/command/identity/link",
+            {"external_id": "workday:1001", "employee_id": "emp-2"},
+            identity_mapper,
+            core_intelligence,
+            activation_services,
+            assessments,
+            analytics,
+            context=employee_context,
+        )
+
+
+# Block comment:
 # This test verifies audit writing, end-to-end gateway handling, and the container delegation wrapper.
 def test_gateway_audit_handle_and_container(monkeypatch: pytest.MonkeyPatch) -> None:
     """Ensure the federation gateway writes audit records and container delegates to the gateway implementation."""
@@ -1000,7 +1147,19 @@ def test_gateway_audit_handle_and_container(monkeypatch: pytest.MonkeyPatch) -> 
     audit_id = AuditHook(stores).write("emp-1", "/analytics", {"status": "ok"})
     assert audit_id == "audit-abcdef123456"
     # Line comment: compose a real gateway over mocked container APIs and verify the full pipeline.
-    identity_mapper = SimpleNamespace(read_identity=Mock(return_value={"actor_id": "emp-1"}), link_identity=Mock(return_value={"ok": True}))
+    identity_mapper = SimpleNamespace(
+        read_identity=Mock(return_value={"actor_id": "emp-1"}),
+        link_identity=Mock(return_value={"ok": True}),
+        resolve_context=Mock(
+            return_value=RequestContext(
+                actor_id="emp-1",
+                tenant_id="default-tenant",
+                roles=["employee"],
+                claims={},
+                feature_flags={"analytics_enabled": True, "assessments_enabled": True},
+            )
+        ),
+    )
     core_intelligence = SimpleNamespace(
         read_skill_states=Mock(return_value={"skill:python": {"proficiency": 0.7}}),
         ingest_evidence=Mock(
