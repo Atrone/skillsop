@@ -1,0 +1,20 @@
+{
+  "id": "org-finance",
+  "descriptor": "Finance Analytics",
+  "type": "Supervisory",
+  "company": {
+    "name": "Acme Corp"
+  },
+  "manager": {
+    "id": "wid-2001",
+    "descriptor": "Morgan Lee"
+  },
+  "staffing": {
+    "headcount": 18,
+    "openPositions": 2
+  },
+  "location": {
+    "id": "loc-austin",
+    "descriptor": "Austin Hub"
+  }
+}

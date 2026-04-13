@@ -1,0 +1,18 @@
+{
+  "count": 1,
+  "data": [
+    {
+      "id": "job-analytics-engineer",
+      "descriptor": "Analytics Engineer",
+      "jobFamily": "Data and Analytics",
+      "jobLevel": "P4",
+      "managementLevel": "Individual Contributor",
+      "links": [
+        {
+          "rel": "self",
+          "href": "/api/v1/acme/jobs/job-analytics-engineer"
+        }
+      ]
+    }
+  ]
+}

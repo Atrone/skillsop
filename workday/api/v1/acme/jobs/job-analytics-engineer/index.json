@@ -1,0 +1,19 @@
+{
+  "id": "job-analytics-engineer",
+  "descriptor": "Analytics Engineer",
+  "jobFamily": {
+    "name": "Data and Analytics"
+  },
+  "jobLevel": "P4",
+  "managementLevel": "Individual Contributor",
+  "workerTypeEligibility": ["Employee"],
+  "defaultLocation": {
+    "id": "loc-austin",
+    "descriptor": "Austin Hub"
+  },
+  "skills": [
+    "SQL",
+    "Python",
+    "Data Modeling"
+  ]
+}

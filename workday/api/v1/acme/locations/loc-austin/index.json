@@ -1,0 +1,13 @@
+{
+  "id": "loc-austin",
+  "descriptor": "Austin Hub",
+  "address": {
+    "addressLine1": "100 Congress Ave",
+    "city": "Austin",
+    "region": "TX",
+    "postalCode": "78701",
+    "country": "US"
+  },
+  "timezone": "America/Chicago",
+  "usage": ["Headquarters", "Office"]
+}

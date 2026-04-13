@@ -1,0 +1,19 @@
+{
+  "id": "wid-1001",
+  "employeeId": "1001",
+  "descriptor": "Avery Jordan",
+  "name": {
+    "legalName": "Avery Jordan",
+    "preferredName": "Avery Jordan"
+  },
+  "workEmail": "avery.jordan@example.com",
+  "businessTitle": "Senior Analytics Engineer",
+  "manager": {
+    "id": "wid-2001",
+    "descriptor": "Morgan Lee"
+  },
+  "location": {
+    "id": "loc-austin",
+    "descriptor": "Austin Hub"
+  }
+}

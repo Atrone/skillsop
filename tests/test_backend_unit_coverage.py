@@ -19,6 +19,7 @@ if str(PROJECT_ROOT) not in sys.path:
 sys.modules.pop("skillsai", None)
 api_module = importlib.import_module("skillsai.app")
 main_module = importlib.import_module("skillsai.main")
+seed_loader_module = importlib.import_module("skillsai.seed_loader")
 from skillsai.containers.activation_services import ActivationServicesAPI
 from skillsai.containers.analytics_longitudinal import (
     AnalyticsLongitudinalContainer,
@@ -366,6 +367,133 @@ def build_customer_record_tree(customer_records_dir: Path) -> None:
             },
         },
     )
+
+
+# Block comment:
+# This helper builds Workday API payloads that mirror the new static mock service route tree.
+def build_workday_api_payloads(base_url: str) -> dict[str, dict[str, Any]]:
+    """Return deterministic mock Workday API responses keyed by request URL."""
+    # Line comment: expose the same tenant and endpoint structure as the docker-backed Workday mock service.
+    return {
+        base_url: {
+            "tenant": "acme",
+            "resources": [
+                {"name": "workers", "path": "/api/v1/acme/workers"},
+                {"name": "jobs", "path": "/api/v1/acme/jobs"},
+                {"name": "organizations", "path": "/api/v1/acme/organizations"},
+                {"name": "locations", "path": "/api/v1/acme/locations"},
+            ],
+        },
+        f"{base_url}/workers": {
+            "count": 1,
+            "data": [
+                {
+                    "id": "wid-1001",
+                    "descriptor": "Avery Jordan",
+                    "employeeId": "1001",
+                    "businessTitle": "Senior Analytics Engineer",
+                    "supervisoryOrganization": {"id": "org-finance", "descriptor": "Finance Analytics"},
+                    "location": {"id": "loc-austin", "descriptor": "Austin Hub"},
+                    "links": [
+                        {"rel": "self", "href": "/api/v1/acme/workers/wid-1001"},
+                        {"rel": "basic", "href": "/api/v1/acme/workers/wid-1001/basic"},
+                        {"rel": "talent", "href": "/api/v1/acme/workers/wid-1001/talent"},
+                    ],
+                }
+            ],
+        },
+        f"{base_url}/workers/wid-1001": {
+            "id": "wid-1001",
+            "descriptor": "Avery Jordan",
+            "employeeId": "1001",
+            "personal": {
+                "firstName": "Avery",
+                "lastName": "Jordan",
+                "email": "avery.jordan@example.com",
+            },
+            "employment": {
+                "workerType": "Employee",
+                "active": True,
+                "businessTitle": "Senior Analytics Engineer",
+            },
+            "jobProfile": {"id": "job-analytics-engineer", "descriptor": "Analytics Engineer"},
+            "organizations": [
+                {"id": "org-finance", "descriptor": "Finance Analytics", "type": "Supervisory"}
+            ],
+            "location": {"id": "loc-austin", "descriptor": "Austin Hub"},
+            "manager": {"id": "wid-2001", "descriptor": "Morgan Lee"},
+        },
+        f"{base_url}/workers/wid-1001/basic": {
+            "id": "wid-1001",
+            "employeeId": "1001",
+            "descriptor": "Avery Jordan",
+            "workEmail": "avery.jordan@example.com",
+            "businessTitle": "Senior Analytics Engineer",
+            "manager": {"id": "wid-2001", "descriptor": "Morgan Lee"},
+            "location": {"id": "loc-austin", "descriptor": "Austin Hub"},
+        },
+        f"{base_url}/workers/wid-1001/talent": {
+            "id": "wid-1001",
+            "descriptor": "Avery Jordan",
+            "skills": [
+                {"id": "skill-sql", "descriptor": "SQL", "proficiency": "Advanced"},
+                {"id": "skill-python", "descriptor": "Python", "proficiency": "Advanced"},
+                {"id": "skill-data-modeling", "descriptor": "Data Modeling", "proficiency": "Intermediate"},
+            ],
+            "careerInterests": ["Principal Analytics Engineer"],
+        },
+        f"{base_url}/jobs": {
+            "count": 1,
+            "data": [
+                {
+                    "id": "job-analytics-engineer",
+                    "descriptor": "Analytics Engineer",
+                    "links": [{"rel": "self", "href": "/api/v1/acme/jobs/job-analytics-engineer"}],
+                }
+            ],
+        },
+        f"{base_url}/jobs/job-analytics-engineer": {
+            "id": "job-analytics-engineer",
+            "descriptor": "Analytics Engineer",
+            "jobLevel": "P4",
+            "skills": ["SQL", "Python", "Data Modeling"],
+        },
+        f"{base_url}/organizations": {
+            "count": 1,
+            "data": [
+                {
+                    "id": "org-finance",
+                    "descriptor": "Finance Analytics",
+                    "type": "Supervisory",
+                    "links": [{"rel": "self", "href": "/api/v1/acme/organizations/org-finance"}],
+                }
+            ],
+        },
+        f"{base_url}/organizations/org-finance": {
+            "id": "org-finance",
+            "descriptor": "Finance Analytics",
+            "type": "Supervisory",
+            "company": {"name": "Acme Corp"},
+            "staffing": {"headcount": 18, "openPositions": 2},
+            "location": {"id": "loc-austin", "descriptor": "Austin Hub"},
+        },
+        f"{base_url}/locations": {
+            "count": 1,
+            "data": [
+                {
+                    "id": "loc-austin",
+                    "descriptor": "Austin Hub",
+                    "links": [{"rel": "self", "href": "/api/v1/acme/locations/loc-austin"}],
+                }
+            ],
+        },
+        f"{base_url}/locations/loc-austin": {
+            "id": "loc-austin",
+            "descriptor": "Austin Hub",
+            "timezone": "America/Chicago",
+            "address": {"city": "Austin", "country": "US"},
+        },
+    }
 
 
 # Block comment:
@@ -1313,35 +1441,51 @@ def test_read_source_integration_config_reads_seed_and_customer_sources(tmp_path
 
 
 # Block comment:
-# This test verifies the source integration hub can load provider-style customer record data.
+# This test verifies the source integration hub can load Workday customer data through the mock API.
 def test_load_seed_data_can_load_customer_record_sources(tmp_path: Path) -> None:
-    """Ensure the compatibility loader can hydrate customer records when configured with a provider source."""
-    # Line comment: build a Workday-style customer-record export and load it through the hub config wrapper.
-    customer_records_dir = tmp_path / "customer-records"
-    build_customer_record_tree(customer_records_dir)
+    """Ensure the compatibility loader hydrates stores from Workday API payloads and container computations."""
+    # Line comment: provide deterministic mock responses for each Workday API endpoint the loader fetches.
+    base_url = "http://mock-workday/api/v1/acme"
+    workday_payloads = build_workday_api_payloads(base_url)
+
+    # Block comment:
+    # This helper replaces remote HTTP fetches with in-memory Workday mock payloads for the test.
+    def mock_fetch_remote_json(url: str) -> dict[str, Any]:
+        """Return one copied Workday API payload for the requested URL."""
+        # Line comment: deep-copy payloads so the loader cannot mutate shared test fixtures between calls.
+        return json.loads(json.dumps(workday_payloads[url]))
+
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(seed_loader_module, "_fetch_remote_json", mock_fetch_remote_json)
     platform = SkillsAIPlatform()
-    load_seed_data(
-        platform,
-        source_config=SourceIntegrationHubConfig(
-            sources=(
-                SourceIntegration(
-                    name="workday",
-                    kind=SOURCE_KIND_CUSTOMER_RECORDS,
-                    path=customer_records_dir.resolve(),
-                    provider="workday",
-                ),
-            )
-        ),
-    )
+    try:
+        load_seed_data(
+            platform,
+            source_config=SourceIntegrationHubConfig(
+                sources=(
+                    SourceIntegration(
+                        name="workday",
+                        kind=SOURCE_KIND_CUSTOMER_RECORDS,
+                        path=(tmp_path / "customer-records").resolve(),
+                        provider="workday",
+                        options={"base_url": base_url},
+                    ),
+                )
+            ),
+        )
+    finally:
+        # Line comment: release the manual monkeypatch even when assertions fail.
+        monkeypatch.undo()
     assert platform.stores.meta["source_data_loaded"] is True
     assert platform.stores.meta["seed_data_loaded"] is False
     assert "customer-records" in platform.stores.meta["source_modules"]
-    assert platform.stores.cache["identity:emp-100"]["tenant_id"] == "acme-tenant"
-    assert platform.stores.cache["identity:emp-100"]["claims"]["claims"]["department"] == "finance"
-    assert platform.stores.cache["id-link:wd-100"] == "emp-100"
-    assert platform.stores.graph["emp-100:skill:sql"]["model_version"] == "workday-v1"
-    assert platform.stores.cache["activation:emp-100"]["recommendations"][0]["skill_id"] == "skill:sql"
-    assert platform.stores.item_bank["asm-workday"]["version"] == 2
-    assert platform.stores.attempts["attempt-workday"]["scores"]["final"] == 0.92
-    assert platform.stores.mart["skill_coverage:finance"] == 0.88
-    assert platform.stores.meta["analytics_run:workday"]["run_id"] == "workday-run"
+    assert "core-intelligence" in platform.stores.meta["source_modules"]
+    assert "activation" in platform.stores.meta["source_modules"]
+    assert "analytics" in platform.stores.meta["source_modules"]
+    assert platform.stores.cache["identity:emp-1001"]["tenant_id"] == "acme-tenant"
+    assert platform.stores.cache["identity:emp-1001"]["claims"]["claims"]["department"] == "Finance Analytics"
+    assert platform.stores.cache["id-link:workday:1001"] == "emp-1001"
+    assert platform.stores.graph["emp-1001:skill:sql"]["model_version"] == "workday-api-v1"
+    assert platform.stores.mart["activation:coaching:accepted"] == 1
+    assert platform.stores.warehouse
+    assert platform.stores.meta["analytics_run:workday"]["run_id"].startswith("run-")

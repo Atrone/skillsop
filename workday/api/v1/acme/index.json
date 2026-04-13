@@ -1,0 +1,21 @@
+{
+  "tenant": "acme",
+  "resources": [
+    {
+      "name": "workers",
+      "path": "/api/v1/acme/workers"
+    },
+    {
+      "name": "jobs",
+      "path": "/api/v1/acme/jobs"
+    },
+    {
+      "name": "organizations",
+      "path": "/api/v1/acme/organizations"
+    },
+    {
+      "name": "locations",
+      "path": "/api/v1/acme/locations"
+    }
+  ]
+}

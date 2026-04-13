@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote, urljoin
+from urllib.request import Request, urlopen
 
 try:
     from .skills_platform import SkillsAIPlatform
@@ -24,6 +27,16 @@ DEFAULT_SEED_MODULES = [
     "assessments",
     "analytics",
 ]
+DEFAULT_WORKDAY_API_BASE_URL = "http://localhost:8106/api/v1/acme"
+DEFAULT_WORKDAY_MODEL_VERSION = "workday-api-v1"
+DEFAULT_WORKDAY_TAXONOMY_VERSION = "workday-api-taxonomy"
+DEFAULT_WORKDAY_TENANT_ID = "acme-tenant"
+WORKDAY_PROFICIENCY_VALUES = {
+    "advanced": 1.0,
+    "intermediate": 0.8,
+    "beginner": 0.6,
+    "novice": 0.4,
+}
 
 
 @dataclass(frozen=True)
@@ -229,6 +242,369 @@ def _read_customer_records_json(source: SourceIntegration) -> dict[str, Any]:
     target_path = _resolve_customer_records_payload_path(source)
     # Line comment: parse the provider payload into an in-memory Python structure.
     return json.loads(target_path.read_text(encoding="utf-8"))
+
+
+# Block comment:
+# This helper identifies Workday customer sources that should load over HTTP instead of disk.
+def _source_uses_workday_api(source: SourceIntegration) -> bool:
+    """Return whether one source should load from the Workday mock API."""
+    # Line comment: normalize provider name so config aliases remain case-insensitive.
+    return source.kind == SOURCE_KIND_CUSTOMER_RECORDS and source.provider.strip().lower() == "workday"
+
+
+# Block comment:
+# This helper centralizes source availability checks for both local folders and remote Workday APIs.
+def _source_has_loadable_input(source: SourceIntegration) -> bool:
+    """Return whether one source has enough input information to attempt loading."""
+    # Line comment: allow Workday API integrations to load even when the legacy folder path is absent.
+    if _source_uses_workday_api(source):
+        return True
+    # Line comment: require an existing file or directory for all local-data integrations.
+    return source.path.exists() or source.path.is_file()
+
+
+# Block comment:
+# This helper resolves the base URL for the Workday mock API from source options or environment.
+def _resolve_workday_api_base_url(source: SourceIntegration) -> str:
+    """Resolve the effective base URL for one Workday API integration."""
+    # Line comment: prefer explicit source options before falling back to environment defaults.
+    configured_base_url = str(
+        source.options.get("base_url", os.getenv("SKILLSAI_WORKDAY_API_BASE_URL", DEFAULT_WORKDAY_API_BASE_URL))
+    ).strip()
+    normalized_base_url = configured_base_url.rstrip("/")
+    # Line comment: trim any explicit index document suffix so callers can append REST resource paths cleanly.
+    if normalized_base_url.endswith("/index.json"):
+        normalized_base_url = normalized_base_url[: -len("/index.json")]
+    return normalized_base_url
+
+
+# Block comment:
+# This helper fetches and parses one JSON document from a remote HTTP endpoint.
+def _fetch_remote_json(url: str) -> dict[str, Any]:
+    """Fetch one JSON payload from a remote URL."""
+    # Line comment: ask the remote service for JSON explicitly so the mock and real APIs share one code path.
+    request = Request(url, headers={"Accept": "application/json"})
+    # Line comment: decode the response body into a Python dictionary for downstream transforms.
+    with urlopen(request, timeout=10) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+# Block comment:
+# This helper normalizes free-text Workday labels into stable slug identifiers.
+def _slugify_workday_value(raw_value: str) -> str:
+    """Normalize one free-text Workday label into a slug identifier."""
+    # Line comment: replace non-alphanumeric groups so generated ids stay deterministic and ASCII-safe.
+    normalized_value = re.sub(r"[^a-z0-9]+", "_", raw_value.strip().lower())
+    return normalized_value.strip("_")
+
+
+# Block comment:
+# This helper converts one Workday skill label into the canonical skill id format used by the platform.
+def _build_workday_skill_id(skill_name: str) -> str:
+    """Build one canonical skill identifier from a Workday skill label."""
+    # Line comment: fall back to a placeholder slug only when the API omits a descriptor entirely.
+    skill_slug = _slugify_workday_value(skill_name) or "unknown_skill"
+    return f"skill:{skill_slug}"
+
+
+# Block comment:
+# This helper fetches the full Workday mock API payload set needed by the source integration loader.
+def _fetch_workday_api_payload(source: SourceIntegration) -> dict[str, Any]:
+    """Fetch and normalize the Workday API resources used during platform hydration."""
+    # Line comment: start from the tenant-scoped base endpoint so resource paths can be discovered dynamically.
+    base_url = _resolve_workday_api_base_url(source)
+    root_payload = _fetch_remote_json(base_url)
+    resource_paths = {
+        str(resource.get("name", "")).strip().lower(): str(resource.get("path", ""))
+        for resource in list(root_payload.get("resources", []))
+        if isinstance(resource, dict)
+    }
+    # Line comment: fetch top-level collections from discovered resource paths or stable Workday-style fallbacks.
+    workers_path = resource_paths.get("workers", f"{base_url}/workers")
+    jobs_path = resource_paths.get("jobs", f"{base_url}/jobs")
+    organizations_path = resource_paths.get("organizations", f"{base_url}/organizations")
+    locations_path = resource_paths.get("locations", f"{base_url}/locations")
+    worker_collection = _fetch_remote_json(urljoin(f"{base_url}/", workers_path))
+    job_collection = _fetch_remote_json(urljoin(f"{base_url}/", jobs_path))
+    organization_collection = _fetch_remote_json(urljoin(f"{base_url}/", organizations_path))
+    location_collection = _fetch_remote_json(urljoin(f"{base_url}/", locations_path))
+    jobs_by_id: dict[str, dict[str, Any]] = {}
+    organizations_by_id: dict[str, dict[str, Any]] = {}
+    locations_by_id: dict[str, dict[str, Any]] = {}
+    workers: list[dict[str, Any]] = []
+    for job_summary in list(job_collection.get("data", [])):
+        # Line comment: resolve each referenced job so downstream loaders can inspect skills and levels.
+        job_id = str(job_summary.get("id", "")).strip()
+        if not job_id:
+            continue
+        jobs_by_id[job_id] = _fetch_remote_json(urljoin(f"{base_url}/", f"jobs/{quote(job_id)}"))
+    for organization_summary in list(organization_collection.get("data", [])):
+        # Line comment: resolve each organization so staffing and cohort metadata can seed analytics inputs.
+        organization_id = str(organization_summary.get("id", "")).strip()
+        if not organization_id:
+            continue
+        organizations_by_id[organization_id] = _fetch_remote_json(
+            urljoin(f"{base_url}/", f"organizations/{quote(organization_id)}")
+        )
+    for location_summary in list(location_collection.get("data", [])):
+        # Line comment: resolve each location so identity claims can include canonical site metadata.
+        location_id = str(location_summary.get("id", "")).strip()
+        if not location_id:
+            continue
+        locations_by_id[location_id] = _fetch_remote_json(urljoin(f"{base_url}/", f"locations/{quote(location_id)}"))
+    for worker_summary in list(worker_collection.get("data", [])):
+        # Line comment: follow worker links so the loader consumes the same detail endpoints as an integration client.
+        worker_id = str(worker_summary.get("id", "")).strip()
+        if not worker_id:
+            continue
+        worker_links = {
+            str(link.get("rel", "")).strip().lower(): str(link.get("href", ""))
+            for link in list(worker_summary.get("links", []))
+            if isinstance(link, dict)
+        }
+        detail_payload = _fetch_remote_json(urljoin(f"{base_url}/", worker_links.get("self", f"workers/{quote(worker_id)}")))
+        basic_payload = _fetch_remote_json(
+            urljoin(f"{base_url}/", worker_links.get("basic", f"workers/{quote(worker_id)}/basic"))
+        )
+        talent_payload = _fetch_remote_json(
+            urljoin(f"{base_url}/", worker_links.get("talent", f"workers/{quote(worker_id)}/talent"))
+        )
+        workers.append(
+            {
+                "summary": dict(worker_summary),
+                "detail": detail_payload,
+                "basic": basic_payload,
+                "talent": talent_payload,
+            }
+        )
+    return {
+        "base_url": base_url,
+        "root": root_payload,
+        "workers": workers,
+        "jobs": jobs_by_id,
+        "organizations": organizations_by_id,
+        "locations": locations_by_id,
+    }
+
+
+# Block comment:
+# This helper waits for any analytics workflow jobs that were queued by Workday-derived events.
+def _wait_for_workday_workflow_jobs(platform: SkillsAIPlatform) -> None:
+    """Wait until all currently queued analytics workflow jobs finish."""
+    # Line comment: copy the current job list once so this wait only covers jobs triggered during the current load cycle.
+    pending_jobs = list(platform.analytics.list_workflow_jobs(limit=200))
+    for job in pending_jobs:
+        # Line comment: block only on jobs that are still in flight when the helper is called.
+        if str(job.get("state", "")) in {"queued", "running"}:
+            platform.analytics.wait_for_workflow_job(str(job["job_id"]))
+
+
+# Block comment:
+# This helper loads one Workday API integration by driving the platform's container computations from mock API payloads.
+def _load_workday_customer_records_source(platform: SkillsAIPlatform, source: SourceIntegration) -> list[str]:
+    """Load one Workday customer source using remote API payloads and container mutation paths."""
+    # Line comment: fetch the full Workday payload set before mutating stores so transforms stay deterministic.
+    workday_payload = _fetch_workday_api_payload(source)
+    root_payload = dict(workday_payload.get("root", {}))
+    worker_payloads = list(workday_payload.get("workers", []))
+    tenant_id = str(source.options.get("tenant_id", DEFAULT_WORKDAY_TENANT_ID))
+    model_version = str(source.options.get("model_version", DEFAULT_WORKDAY_MODEL_VERSION))
+    taxonomy_version = str(source.options.get("taxonomy_version", DEFAULT_WORKDAY_TAXONOMY_VERSION))
+    # Line comment: derive taxonomy skills and job mappings from the same Workday talent and job detail endpoints.
+    taxonomy_skills: dict[str, dict[str, Any]] = {}
+    job_mappings: dict[str, list[str]] = {}
+    for worker_payload in worker_payloads:
+        talent_payload = dict(worker_payload.get("talent", {}))
+        detail_payload = dict(worker_payload.get("detail", {}))
+        job_profile = dict(detail_payload.get("jobProfile", {}))
+        job_detail = dict(workday_payload.get("jobs", {}).get(str(job_profile.get("id", "")), {}))
+        job_descriptor = str(job_detail.get("descriptor") or job_profile.get("descriptor") or "unknown-job")
+        job_key = _slugify_workday_value(job_descriptor) or "unknown_job"
+        mapped_skill_ids: list[str] = []
+        for skill in list(talent_payload.get("skills", [])):
+            # Line comment: publish each talent endpoint skill into the active taxonomy version.
+            skill_name = str(skill.get("descriptor") or skill.get("name") or skill.get("id") or "Unknown Skill")
+            skill_id = _build_workday_skill_id(skill_name)
+            taxonomy_skills[skill_id] = {"id": skill_id, "descriptor": skill_name}
+            mapped_skill_ids.append(skill_id)
+        if mapped_skill_ids:
+            job_mappings[job_key] = sorted(set(mapped_skill_ids))
+    platform.core_intelligence.taxonomy.publish_taxonomy_version(
+        platform.stores,
+        version=taxonomy_version,
+        ontology={"skills": list(taxonomy_skills.values())},
+        job_mappings=job_mappings,
+        proficiency_scales={"default": list(DEFAULT_PROFICIENCY_SCALE)},
+    )
+    platform.stores.meta[f"workday_api:{source.name}"] = {
+        "base_url": str(workday_payload.get("base_url", "")),
+        "tenant": str(root_payload.get("tenant", "acme")),
+        "worker_count": len(worker_payloads),
+        "job_count": len(workday_payload.get("jobs", {})),
+        "organization_count": len(workday_payload.get("organizations", {})),
+        "location_count": len(workday_payload.get("locations", {})),
+    }
+    derived_cohorts: list[str] = []
+    for worker_payload in worker_payloads:
+        # Line comment: collect detail documents used to build identity, inference, and activation inputs.
+        summary_payload = dict(worker_payload.get("summary", {}))
+        detail_payload = dict(worker_payload.get("detail", {}))
+        basic_payload = dict(worker_payload.get("basic", {}))
+        talent_payload = dict(worker_payload.get("talent", {}))
+        job_profile = dict(detail_payload.get("jobProfile", {}))
+        organization_payload = dict((detail_payload.get("organizations") or [{}])[0])
+        if not organization_payload:
+            organization_payload = dict(summary_payload.get("supervisoryOrganization", {}))
+        location_payload = dict(detail_payload.get("location", {}))
+        if not location_payload:
+            location_payload = dict(summary_payload.get("location", {}))
+        job_detail = dict(workday_payload.get("jobs", {}).get(str(job_profile.get("id", "")), {}))
+        organization_detail = dict(workday_payload.get("organizations", {}).get(str(organization_payload.get("id", "")), {}))
+        location_detail = dict(workday_payload.get("locations", {}).get(str(location_payload.get("id", "")), {}))
+        employee_number = str(
+            basic_payload.get("employeeId")
+            or detail_payload.get("employeeId")
+            or summary_payload.get("employeeId")
+            or detail_payload.get("id")
+            or "unknown"
+        )
+        employee_id = str(source.options.get("employee_id_prefix", "emp-")) + employee_number
+        workday_worker_id = str(detail_payload.get("id") or summary_payload.get("id") or employee_id)
+        cohort_value = str(
+            organization_payload.get("id")
+            or organization_detail.get("id")
+            or organization_payload.get("descriptor")
+            or "all"
+        )
+        cohort = _slugify_workday_value(cohort_value) or "all"
+        derived_cohorts.append(cohort)
+        worker_record = {
+            "employee_id": employee_id,
+            "worker_id": workday_worker_id,
+            "external_id": f"workday:{employee_number}",
+            "tenant_id": tenant_id,
+            "roles": list(source.options.get("roles", ["employee"])),
+            "department": str(organization_payload.get("descriptor") or organization_detail.get("descriptor") or "Unknown"),
+            "location": str(location_payload.get("descriptor") or location_detail.get("descriptor") or "Unknown"),
+            "email": str(
+                basic_payload.get("workEmail")
+                or dict(detail_payload.get("personal", {})).get("email")
+                or f"{employee_number}@example.com"
+            ),
+            "manager_id": str(dict(detail_payload.get("manager", {})).get("id", "")),
+            "job_profile": str(job_profile.get("descriptor") or job_detail.get("descriptor") or "Unknown"),
+            "title": str(
+                dict(detail_payload.get("employment", {})).get("businessTitle")
+                or summary_payload.get("businessTitle")
+                or "Unknown"
+            ),
+            "employment_status": "active" if bool(dict(detail_payload.get("employment", {})).get("active", True)) else "inactive",
+            "cost_center": str(dict(organization_detail.get("company", {})).get("name", "Unknown")),
+            "claims": {
+                "worker_descriptor": str(detail_payload.get("descriptor") or summary_payload.get("descriptor") or employee_id),
+                "worker_type": str(dict(detail_payload.get("employment", {})).get("workerType", "Employee")),
+                "workday_employee_id": employee_number,
+                "location_timezone": str(location_detail.get("timezone", "")),
+            },
+        }
+        claims = _build_customer_claims(worker_record, source.provider, source.name, str(worker_record["external_id"]))
+        platform.identity_mapper.upsert_identity(
+            employee_id,
+            {
+                "tenant_id": tenant_id,
+                "roles": list(worker_record.get("roles", ["employee"])),
+                "claims": claims,
+            },
+        )
+        platform.identity_mapper.link_identity(str(worker_record["external_id"]), employee_id)
+        if workday_worker_id and workday_worker_id != employee_id:
+            # Line comment: keep native Workday worker ids resolvable for REST and SSO-style token flows.
+            platform.identity_mapper.link_identity(workday_worker_id, employee_id)
+        job_skills = {
+            _slugify_workday_value(str(skill_name))
+            for skill_name in list(job_detail.get("skills", []))
+        }
+        for skill in list(talent_payload.get("skills", [])):
+            # Line comment: ingest Workday talent skills as evidence so core intelligence computes graph and mart state itself.
+            skill_name = str(skill.get("descriptor") or skill.get("name") or skill.get("id") or "Unknown Skill")
+            skill_id = _build_workday_skill_id(skill_name)
+            proficiency_label = str(skill.get("proficiency", "intermediate")).strip().lower()
+            talent_value = float(WORKDAY_PROFICIENCY_VALUES.get(proficiency_label, 0.7))
+            platform.core_intelligence.ingest_evidence(
+                {
+                    "employee_id": employee_id,
+                    "skill_id": skill_id,
+                    "value": talent_value,
+                    "source": "workday.talent",
+                    "confidence_hint": 0.9,
+                    "metadata": {
+                        "worker_id": workday_worker_id,
+                        "skill_label": skill_name,
+                        "proficiency": proficiency_label,
+                    },
+                    "model_version": model_version,
+                }
+            )
+            if _slugify_workday_value(skill_name) in job_skills:
+                # Line comment: ingest a second Workday job-alignment signal so graph-backed activation reads have richer inputs.
+                platform.core_intelligence.ingest_evidence(
+                    {
+                        "employee_id": employee_id,
+                        "skill_id": skill_id,
+                        "value": min(1.0, talent_value + 0.1),
+                        "source": "workday.job_profile",
+                        "confidence_hint": 0.8,
+                        "metadata": {
+                            "job_profile": str(worker_record["job_profile"]),
+                            "skill_label": skill_name,
+                        },
+                        "model_version": model_version,
+                    }
+                )
+        context = platform.identity_mapper.resolve_context(employee_id, {})
+        activation_read = platform.activation_services.read(context, {"employee_id": employee_id})
+        recommendations = list(activation_read.get("recommendations", []))
+        if recommendations:
+            # Line comment: record one derived coaching action so activation marts and analytics time-series update through APIs.
+            platform.activation_services.act(
+                context,
+                {
+                    "employee_id": employee_id,
+                    "action_type": "coaching",
+                    "skill_id": str(recommendations[0].get("skill_id", "")),
+                    "outcome": "accepted",
+                },
+            )
+    # Line comment: wait for event-driven analytics jobs before installing KPI definitions to keep the final materialization deterministic.
+    _wait_for_workday_workflow_jobs(platform)
+    primary_organization = next(iter(workday_payload.get("organizations", {}).values()), {})
+    headcount = float(dict(primary_organization.get("staffing", {})).get("headcount", max(len(worker_payloads), 1)))
+    open_positions = float(dict(primary_organization.get("staffing", {})).get("openPositions", 0))
+    unique_skill_count = max(len(taxonomy_skills), 1)
+    primary_cohort = derived_cohorts[0] if derived_cohorts else "all"
+    platform.stores.meta["kpi_definitions"] = {
+        "skill_coverage": {
+            "cohort": primary_cohort,
+            "multiplier": round(unique_skill_count / max(headcount, 1.0), 4),
+        },
+        "trend.skill_coverage": {
+            "cohort": primary_cohort,
+            "multiplier": round((unique_skill_count + open_positions) / max(headcount, 1.0), 4),
+        },
+        "activation.coaching.accepted": {
+            "cohort": primary_cohort,
+            "multiplier": round(max(len(worker_payloads), 1) / max(headcount, 1.0), 4),
+        },
+    }
+    materialization_result = platform.analytics.trigger_materialization(
+        trigger=f"workday:{primary_cohort}",
+        wait_for_completion=True,
+    )
+    platform.stores.meta[f"analytics_run:{source.name}"] = dict(materialization_result.get("run", {}))
+    platform.stores.meta.setdefault("customer_record_sources", []).append(source.name)
+    platform.stores.meta.setdefault("customer_record_providers", []).append(source.provider)
+    # Line comment: report the modules that were hydrated through Workday API-driven container computations.
+    return ["customer-records", "identity", "core-intelligence", "activation", "analytics"]
 
 
 # Block comment:
@@ -504,6 +880,9 @@ def _build_customer_claims(record: dict[str, Any], provider: str, source_name: s
 # This helper loads one customer-record integration into the platform stores.
 def _load_customer_records_source(platform: SkillsAIPlatform, source: SourceIntegration) -> list[str]:
     """Load one customer-record payload into the backend platform stores."""
+    # Line comment: route Workday sources through the API-backed container computation path.
+    if _source_uses_workday_api(source):
+        return _load_workday_customer_records_source(platform, source)
     # Line comment: parse the configured provider payload and capture default tenant/model metadata.
     customer_payload = _read_customer_records_json(source)
     tenant_id = str(customer_payload.get("tenant_id", "default-tenant"))
@@ -654,7 +1033,7 @@ class SourceIntegrationHub:
                 summary["status"] = "disabled"
                 source_summaries.append(summary)
                 continue
-            if not source.path.exists() and not source.path.is_file():
+            if not _source_has_loadable_input(source):
                 # Line comment: mark missing source roots so callers can inspect why no data was loaded.
                 summary["status"] = "missing"
                 source_summaries.append(summary)

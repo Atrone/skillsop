@@ -44,6 +44,21 @@ Hosted seed-data service endpoints:
 - `http://localhost:8103/index.json` -> activation services API seeds
 - `http://localhost:8104/index.json` -> assessments API seeds
 - `http://localhost:8105/index.json` -> analytics API seeds
+- `http://localhost:8106/index.json` -> Workday-style REST API mock
+
+Workday-style mock endpoints:
+
+- `GET http://localhost:8106/api/v1/acme`
+- `GET http://localhost:8106/api/v1/acme/workers`
+- `GET http://localhost:8106/api/v1/acme/workers/wid-1001`
+- `GET http://localhost:8106/api/v1/acme/workers/wid-1001/basic`
+- `GET http://localhost:8106/api/v1/acme/workers/wid-1001/talent`
+- `GET http://localhost:8106/api/v1/acme/jobs`
+- `GET http://localhost:8106/api/v1/acme/jobs/job-analytics-engineer`
+- `GET http://localhost:8106/api/v1/acme/organizations`
+- `GET http://localhost:8106/api/v1/acme/organizations/org-finance`
+- `GET http://localhost:8106/api/v1/acme/locations`
+- `GET http://localhost:8106/api/v1/acme/locations/loc-austin`
 
 ## React frontend integration
 

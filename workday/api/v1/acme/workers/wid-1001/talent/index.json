@@ -1,0 +1,31 @@
+{
+  "id": "wid-1001",
+  "descriptor": "Avery Jordan",
+  "skills": [
+    {
+      "id": "skill-sql",
+      "descriptor": "SQL",
+      "proficiency": "Advanced"
+    },
+    {
+      "id": "skill-python",
+      "descriptor": "Python",
+      "proficiency": "Advanced"
+    },
+    {
+      "id": "skill-data-modeling",
+      "descriptor": "Data Modeling",
+      "proficiency": "Intermediate"
+    }
+  ],
+  "careerInterests": [
+    "Principal Analytics Engineer",
+    "People Manager"
+  ],
+  "certifications": [
+    {
+      "name": "dbt Fundamentals",
+      "status": "Active"
+    }
+  ]
+}

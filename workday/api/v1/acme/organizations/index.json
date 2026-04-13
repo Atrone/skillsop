@@ -1,0 +1,17 @@
+{
+  "count": 1,
+  "data": [
+    {
+      "id": "org-finance",
+      "descriptor": "Finance Analytics",
+      "type": "Supervisory",
+      "company": "Acme Corp",
+      "links": [
+        {
+          "rel": "self",
+          "href": "/api/v1/acme/organizations/org-finance"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,48 @@
+{
+  "id": "wid-1001",
+  "descriptor": "Avery Jordan",
+  "employeeId": "1001",
+  "userId": "avery.jordan",
+  "personal": {
+    "firstName": "Avery",
+    "lastName": "Jordan",
+    "preferredName": "Avery",
+    "email": "avery.jordan@example.com"
+  },
+  "employment": {
+    "workerType": "Employee",
+    "hireDate": "2021-03-15",
+    "active": true,
+    "timeType": "Full time",
+    "businessTitle": "Senior Analytics Engineer"
+  },
+  "jobProfile": {
+    "id": "job-analytics-engineer",
+    "descriptor": "Analytics Engineer"
+  },
+  "organizations": [
+    {
+      "type": "Supervisory",
+      "id": "org-finance",
+      "descriptor": "Finance Analytics"
+    }
+  ],
+  "location": {
+    "id": "loc-austin",
+    "descriptor": "Austin Hub"
+  },
+  "manager": {
+    "id": "wid-2001",
+    "descriptor": "Morgan Lee"
+  },
+  "links": [
+    {
+      "rel": "basic",
+      "href": "/api/v1/acme/workers/wid-1001/basic"
+    },
+    {
+      "rel": "talent",
+      "href": "/api/v1/acme/workers/wid-1001/talent"
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "service": "mock-workday-api",
+  "description": "Static Workday-style REST API mock for worker, job, organization, and location resources.",
+  "tenant": "acme",
+  "base_path": "/api/v1/acme",
+  "authentication": {
+    "supported_schemes": ["Bearer", "Basic"],
+    "note": "Authentication is not enforced in the mock service."
+  },
+  "supported_endpoints": [
+    "GET /api/v1/acme",
+    "GET /api/v1/acme/workers",
+    "GET /api/v1/acme/workers/wid-1001",
+    "GET /api/v1/acme/workers/wid-1001/basic",
+    "GET /api/v1/acme/workers/wid-1001/talent",
+    "GET /api/v1/acme/jobs",
+    "GET /api/v1/acme/jobs/job-analytics-engineer",
+    "GET /api/v1/acme/organizations",
+    "GET /api/v1/acme/organizations/org-finance",
+    "GET /api/v1/acme/locations",
+    "GET /api/v1/acme/locations/loc-austin"
+  ]
+}

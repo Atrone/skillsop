@@ -1,0 +1,17 @@
+{
+  "count": 1,
+  "data": [
+    {
+      "id": "loc-austin",
+      "descriptor": "Austin Hub",
+      "city": "Austin",
+      "country": "US",
+      "links": [
+        {
+          "rel": "self",
+          "href": "/api/v1/acme/locations/loc-austin"
+        }
+      ]
+    }
+  ]
+}
